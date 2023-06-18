@@ -1,5 +1,6 @@
 use std::ops;
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Bitboard(u64);
 
 impl Default for Bitboard {
@@ -30,11 +31,16 @@ impl Bitboard {
     }
 
     #[inline(always)]
+    pub const fn more_than_one(self) -> bool {
+        self.0 & (self.0 - 1) > 0
+    }
+
+    #[inline(always)]
     pub const fn const_or(self, other: Self) -> Self {
         Self(self.0 | other.0)
     }
 
-    pub const fn shift(value: i32) -> Self {
+    pub const fn shift(self, value: i32) -> Self {
         debug_assert!(value.abs() < 64);
         if value > 0 {
             Self(self.0 << value)
@@ -43,13 +49,14 @@ impl Bitboard {
         }
     }
 
-    pub const fn lsb(self) -> u32 {
+    #[inline(always)]
+    pub const fn ctz(self) -> u32 {
         debug_assert!(self.gtz());
         self.0.trailing_zeros()
     }
 }
 
-impl Not for Bitboard {
+impl ops::Not for Bitboard {
     type Output = Self;
     fn not(self) -> Self {
         Self(!self.0)
