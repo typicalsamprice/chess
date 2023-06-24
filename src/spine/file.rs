@@ -1,4 +1,4 @@
-use crate::spine::Bitboard;
+use super::Bitboard;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum File {

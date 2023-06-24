@@ -1,6 +1,9 @@
-use crate::spine::{File, Rank};
+use super::{File, Rank};
+use super::Bitboard;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+use super::bitboard::SQUARE_DIST;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Square(u8);
 
 impl Square {
@@ -35,6 +38,16 @@ impl Square {
         unsafe { std::mem::transmute(self.0 >> 3) }
     }
 
+    #[inline]
+    pub const fn offset(self, os: i32) -> Option<Self> {
+        let res = self.as_u8() as i32 + os;
+        if res < 0 || res >= Self::COUNT as i32 {
+            None
+        } else {
+            Some(Self(res as u8))
+        }
+    }
+
     #[inline(always)]
     pub const fn is_ok(self) -> bool {
         self.0 < Self::COUNT as u8
@@ -50,6 +63,15 @@ impl Square {
     }
 
     pub fn distance(self, other: Self) -> i32 {
-        (self.file().as_usize().abs_diff(other.file().as_usize())).max(self.rank().as_usize().abs_diff(other.rank().as_usize())) as i32
+        if !(self.is_ok() && other.is_ok()) {
+            return i32::MAX;
+        }
+        unsafe { SQUARE_DIST[self.as_u8() as usize][other.as_u8() as usize] }
     }
 }  
+
+impl Into<Bitboard> for Square {
+    fn into(self) -> Bitboard {
+        Bitboard::new(1u64 << self.as_u8()) 
+    }
+}
