@@ -2,7 +2,10 @@ use super::initialize_magics;
 use super::{Color, Square};
 use super::piece_attacks::*;
 use super::PieceType;
+
 use std::ops;
+use std::fmt;
+use std::mem::transmute;
 
 pub(crate) static mut SQUARE_DIST: [[i32; 64]; 64] = [[0; 64]; 64];
 pub(crate) static mut PAWN_ATTACKS: [[Bitboard; 64]; 2] = [[Bitboard::new(0); 64]; 2];
@@ -10,10 +13,30 @@ pub(crate) static mut PSEUDO_ATTACKS: [[Bitboard; 64]; 2] = [[Bitboard::new(0); 
 static mut LINE_BB: [[Bitboard; 64]; 64] = [[Bitboard::new(0); 64]; 64];
 static mut BETWEEN_BB: [[Bitboard; 64]; 64] = [[Bitboard::new(0); 64]; 64];
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Bitboard(u64);
 
 pub(crate) fn initialize_bitboards() {
+
+    for i in 0..64 {
+        for j in 0..64 {
+            let s = Square::new(i);
+            let sj = Square::new(j);
+
+            let r1 = s.rank().as_usize();
+            let r2 = sj.rank().as_usize();
+            let f1 = s.file().as_usize();
+            let f2 = sj.file().as_usize();
+
+            let rd = r1.abs_diff(r2);
+            let fd = f1.abs_diff(f2);
+
+            unsafe {
+                SQUARE_DIST[i as usize][j as usize] = rd.max(fd) as i32;
+            }
+        }
+    }
+
     initialize_magics();
 
     for i in 0..64 {
@@ -34,13 +57,6 @@ pub(crate) fn initialize_bitboards() {
                 }
                 rv
             };
-        }
-
-        for j in 0..64 {
-            let sj = Square::new(j);
-
-            unsafe { SQUARE_DIST[i as usize][j as usize] = (s.file().as_usize().abs_diff(sj.file().as_usize())).max(
-                    s.rank().as_usize().abs_diff(sj.rank().as_usize())) as i32; }
         }
 
         for pt in [PieceType::Bishop, PieceType::Rook] {
@@ -85,7 +101,7 @@ impl Bitboard {
 
     #[inline(always)]
     pub const fn popcount(self) -> u32 {
-        self.0.count_zeros()
+        self.0.count_ones()
     }
 
     #[inline(always)]
@@ -113,8 +129,11 @@ impl Bitboard {
         self.0.trailing_zeros()
     }
 
-    pub fn carry_ripple(self, carrier: Self) -> Self {
-        Self(self.0.wrapping_sub(carrier.0) & carrier.0)
+    #[inline(always)]
+    pub const fn carry_ripple(self, carrier: Self) -> Self {
+        let a = self.0;
+        let b = carrier.0;
+        Self(a.wrapping_sub(b) & b)
     }
 }
 
@@ -175,5 +194,25 @@ impl ops::Shr<i32> for Bitboard {
     type Output = Self;
     fn shr(self, shift: i32) -> Self {
         Self(self.0 >> shift)
+    }
+}
+
+impl fmt::Display for Bitboard {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut s = String::with_capacity(72);
+        for i in 0..8 {
+            for j in 0..8 {
+                let r = 7 - i;
+                let f = j;
+                let b: Bitboard = unsafe { Square::build(transmute(f as u8), transmute(r as u8)).into() };
+                if (*self & b).gtz() {
+                    s.push('1');
+                } else {
+                    s.push('0');
+                }
+            }
+            s.push('\n');
+        }
+        write!(f, "{s}")
     }
 }

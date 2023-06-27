@@ -19,5 +19,4 @@ pub use square::*;
 pub use piece::*;
 pub use piece_attacks::*;
 
-pub(crate) use magic::get_magic_value;
-pub(crate) use magic::initialize_magics;
+pub(crate) use magic::*;

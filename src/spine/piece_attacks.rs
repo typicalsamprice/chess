@@ -2,7 +2,7 @@ use super::Bitboard;
 use super::Square;
 use super::{File, Rank};
 use super::{Color, PieceType};
-use super::get_magic_value;
+use super::get_sliding_attack;
 
 use super::bitboard::PSEUDO_ATTACKS;
 use super::bitboard::PAWN_ATTACKS;
@@ -27,7 +27,7 @@ pub(crate) fn king_attacks(square: Square) -> Bitboard {
     rv
 }
 
-pub(crate) fn knight_attacks(square: Square) -> Bitboard {
+pub fn knight_attacks(square: Square) -> Bitboard {
     unsafe { PSEUDO_ATTACKS[0][square.as_u8() as usize] }
 }
 
@@ -43,10 +43,10 @@ pub fn knight_attacks_by_board(knights: Bitboard) -> Bitboard {
 }
 
 pub fn bishop_attacks(square: Square, occupancy: Bitboard) -> Bitboard {
-    get_magic_value(false, square, occupancy)
+    get_sliding_attack(false, square, occupancy)
 }
 pub fn rook_attacks(square: Square, occupancy: Bitboard) -> Bitboard {
-    get_magic_value(true, square, occupancy)
+    get_sliding_attack(true, square, occupancy)
 }
 pub fn queen_attacks(square: Square, occupancy: Bitboard) -> Bitboard {
     bishop_attacks(square, occupancy) | rook_attacks(square, occupancy)

@@ -1,6 +1,9 @@
 use super::{File, Rank};
 use super::Bitboard;
 
+use std::fmt;
+use std::process::{abort, exit};
+
 use super::bitboard::SQUARE_DIST;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -63,15 +66,21 @@ impl Square {
     }
 
     pub fn distance(self, other: Self) -> i32 {
-        if !(self.is_ok() && other.is_ok()) {
-            return i32::MAX;
-        }
         unsafe { SQUARE_DIST[self.as_u8() as usize][other.as_u8() as usize] }
     }
-}  
+}
 
 impl Into<Bitboard> for Square {
     fn into(self) -> Bitboard {
         Bitboard::new(1u64 << self.as_u8()) 
+    }
+}
+
+impl fmt::Display for Square {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let fc = ((self.0 & 7) + b'A') as char;
+        let rc = ((self.0 >> 3) + b'1') as char;
+
+        write!(f, "{fc}{rc}")
     }
 }

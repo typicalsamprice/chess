@@ -9,5 +9,5 @@ edition = "2021"
 bitintr = { version = "0.3.0", optional = true }
 
 [features]
-default-features = []
+default = []
 pext = ["dep:bitintr"]
