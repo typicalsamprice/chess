@@ -66,7 +66,7 @@ impl Board {
     #[inline(always)]
     pub const fn piece_on(&self, square: Square) -> Option<Piece> {
         debug_assert!(square.is_ok());
-        self.pieces[square.as_u8() as usize]
+        self.pieces[square.as_usize()]
     }
     #[inline(always)]
     pub const fn is_empty(&self, square: Square) -> bool {

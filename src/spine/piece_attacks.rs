@@ -2,7 +2,7 @@ use super::Bitboard;
 use super::Square;
 use super::{File, Rank};
 use super::{Color, PieceType};
-use super::get_sliding_attack;
+use super::magic_lookup;
 
 use super::bitboard::PSEUDO_ATTACKS;
 use super::bitboard::PAWN_ATTACKS;
@@ -19,7 +19,7 @@ pub(crate) fn king_attacks(square: Square) -> Bitboard {
     for shift in [1, 7, 8, 9, -1, -7, -8, -9] {
         if let Some(off) = square.offset(shift) {
             if square.distance(off) <= 2 {
-                rv |= off.into();
+                rv |= Into::<Bitboard>::into(off);
             }
         }
     }
@@ -28,7 +28,7 @@ pub(crate) fn king_attacks(square: Square) -> Bitboard {
 }
 
 pub fn knight_attacks(square: Square) -> Bitboard {
-    unsafe { PSEUDO_ATTACKS[0][square.as_u8() as usize] }
+    unsafe { PSEUDO_ATTACKS[0][square.as_usize()] }
 }
 
 pub fn knight_attacks_by_board(knights: Bitboard) -> Bitboard {
@@ -43,10 +43,10 @@ pub fn knight_attacks_by_board(knights: Bitboard) -> Bitboard {
 }
 
 pub fn bishop_attacks(square: Square, occupancy: Bitboard) -> Bitboard {
-    get_sliding_attack(false, square, occupancy)
+    magic_lookup(false, square, occupancy)
 }
 pub fn rook_attacks(square: Square, occupancy: Bitboard) -> Bitboard {
-    get_sliding_attack(true, square, occupancy)
+    magic_lookup(true, square, occupancy)
 }
 pub fn queen_attacks(square: Square, occupancy: Bitboard) -> Bitboard {
     bishop_attacks(square, occupancy) | rook_attacks(square, occupancy)
@@ -54,11 +54,11 @@ pub fn queen_attacks(square: Square, occupancy: Bitboard) -> Bitboard {
 
 pub fn piece_attack(square: Square, occupancy: Bitboard, piece_type: PieceType, color: Color) -> Bitboard {
     match piece_type {
-        PieceType::Pawn => unsafe { PAWN_ATTACKS[color.as_usize()][square.as_u8() as usize] }
-        PieceType::Knight => unsafe { PSEUDO_ATTACKS[0][square.as_u8() as usize] },
+        PieceType::Pawn => unsafe { PAWN_ATTACKS[color.as_usize()][square.as_usize()] }
+        PieceType::Knight => unsafe { PSEUDO_ATTACKS[0][square.as_usize()] },
         PieceType::Bishop => bishop_attacks(square, occupancy),
         PieceType::Rook => rook_attacks(square, occupancy),
         PieceType::Queen => queen_attacks(square, occupancy),
-        PieceType::King => unsafe { PSEUDO_ATTACKS[1][square.as_u8() as usize] }
+        PieceType::King => unsafe { PSEUDO_ATTACKS[1][square.as_usize()] }
     }
 }

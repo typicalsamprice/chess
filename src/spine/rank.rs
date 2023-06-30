@@ -1,7 +1,7 @@
 use crate::spine::Bitboard;
 use crate::spine::Color;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Rank {
     One, Two, Three, Four,
     Five, Six, Seven, Eight
@@ -24,5 +24,11 @@ impl Rank {
             Color::White => self,
             Color::Black => unsafe { std::mem::transmute(7 - self.as_usize() as u8) }
         }
+    }
+}
+
+impl Into<Bitboard> for Rank {
+    fn into(self) -> Bitboard {
+        self.to_bitboard()
     }
 }

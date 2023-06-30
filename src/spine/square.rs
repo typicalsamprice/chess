@@ -1,11 +1,12 @@
+#![allow(unused)]
 use super::{File, Rank};
 use super::Bitboard;
 
 use std::fmt;
-use std::process::{abort, exit};
 
 use super::bitboard::SQUARE_DIST;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Square(u8);
 
@@ -20,13 +21,17 @@ impl Square {
 
     #[inline]
     pub const fn build(file: File, rank: Rank) -> Self {
-        let i = file.as_usize() + rank.as_usize() * 8;
+        let i = file.as_usize() + (rank.as_usize() << 3);
         Self(i as u8)
     }
 
     #[inline(always)]
     pub const fn as_u8(self) -> u8 {
         self.0
+    }
+    #[inline(always)]
+    pub const fn as_usize(self) -> usize {
+        self.0 as usize
     }
 
     #[inline]
@@ -36,7 +41,7 @@ impl Square {
     }
 
     #[inline]
-    pub const fn rank(self) -> File {
+    pub const fn rank(self) -> Rank {
         debug_assert!(self.is_ok());
         unsafe { std::mem::transmute(self.0 >> 3) }
     }
@@ -66,7 +71,12 @@ impl Square {
     }
 
     pub fn distance(self, other: Self) -> i32 {
-        unsafe { SQUARE_DIST[self.as_u8() as usize][other.as_u8() as usize] }
+        unsafe { SQUARE_DIST[self.as_usize()][other.as_usize()] }
+    }
+
+    #[inline(always)]
+    pub const fn to_bitboard(self) -> Bitboard {
+        Bitboard::new(1 << self.0)
     }
 }
 
@@ -140,7 +150,7 @@ impl Square {
 
 impl Into<Bitboard> for Square {
     fn into(self) -> Bitboard {
-        Bitboard::new(1u64 << self.as_u8()) 
+        self.to_bitboard()
     }
 }
 

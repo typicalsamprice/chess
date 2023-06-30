@@ -8,6 +8,7 @@ mod piece_attacks;
 mod rank;
 mod square;
 mod piece;
+mod prng;
 
 pub use board::*;
 pub use color::*;

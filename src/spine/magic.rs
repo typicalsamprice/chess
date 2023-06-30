@@ -1,189 +1,179 @@
 use super::{Bitboard, Square};
 use super::{File, Rank};
 
+use super::prng::PRNG;
+
 use crate::macros::pext;
 
 #[derive(Debug, Clone, Copy)]
-struct Magic<'a> {
+struct Magic {
+    magic: Bitboard,
     mask: Bitboard,
-    multiplier: u64,
-    shift: i32,
-    attacks: &'a [Bitboard],
-    index: usize
+    shift: u32,
+    attacks: &'static [Bitboard],
+    width: usize,
+    ptr: usize
 }
 
-struct RandU64(u64);
-
-impl<'a> Magic<'a> {
+impl Magic {
     #[inline(always)]
     pub const fn new() -> Self {
         Self {
+            magic: Bitboard::new(0),
             mask: Bitboard::new(0),
-            multiplier: 0,
             shift: 0,
             attacks: &[],
-            index: 0
+            width: 0, // Such that attacks.len() == width
+            ptr: 0
         }
     }
 
-    #[inline]
-    pub const fn offset(&self, occupancy: Bitboard) -> usize {
-        let f1 = self.multiplier;
-        let f2 = occupancy.as_u64();
-        let f3 = self.mask.as_u64();
+    pub fn offset(&self, occupied: Bitboard) -> usize {
+        #[cfg(feature = "pext")] 
+        return pext!(occupied.as_u64(), self.mask.as_u64());
 
-        #[cfg(feature = "pext")]
-        return pext!(f2, f3);
-
-        ((f2 & f3).wrapping_mul(f1) >> self.shift) as usize
+        let masked = occupied & self.mask;
+        let v = masked * self.magic;
+        v.as_u64() as usize >> self.shift
     }
 }
 
-impl RandU64 {
-    #[inline(always)]
-    pub const fn new(val: u64) -> Self {
-        debug_assert!(val > 0);
-        Self(val)
-    }
-
-    pub fn reroll(&mut self) {
-        self.0 ^= self.0 >> 12;
-        self.0 ^= self.0 << 25;
-        self.0 ^= self.0 >> 27;
-        self.0 = self.0.wrapping_mul(2685821657736338717_u64);
-    }
-
-    pub fn fetch_new(&mut self) -> u64 {
-        self.reroll();
-        self.0
-    }
-    pub fn fetch_new_sparse(&mut self) -> u64 {
-        let a = self.fetch_new();
-        let b = self.fetch_new();
-        let c = self.fetch_new();
-        a & b & c
-    }
-}
-
-static mut BISHOP_MAGICS: [Magic; 64] = [Magic::new(); 64];
 static mut ROOK_MAGICS: [Magic; 64] = [Magic::new(); 64];
+static mut BISHOP_MAGICS: [Magic; 64] = [Magic::new(); 64];
 
-static mut BISHOP_ATTACK_TABLE: [Bitboard; 0x1480] = [Bitboard::new(0); 0x1480];
-static mut ROOK_ATTACK_TABLE: [Bitboard; 0x19000] = [Bitboard::new(0); 0x19000];
+static mut ROOK_TABLE: [Bitboard; 0x19000] = [Bitboard::new(0); 0x19000];
+static mut BISHOP_TABLE: [Bitboard; 0x1480] = [Bitboard::new(0); 0x1480];
 
-const SEEDS: [u64; 8] = [728, 10316, 55013, 32803,
-                         12281, 15100, 16645, 255];
+const SEEDS: [u64; 8] = [728, 10316, 55013, 32803, 12281, 15100, 16645, 255];
 
 pub(crate) fn initialize_magics() {
     unsafe {
-        init_magics(false, &mut BISHOP_ATTACK_TABLE[..], &mut BISHOP_MAGICS[..]);
-        init_magics(true, &mut ROOK_ATTACK_TABLE[..], &mut ROOK_MAGICS[..]);
+        init_magics(false);
+        init_magics(true);
     }
 }
 
-fn init_magics<'a>(is_rook: bool, table: &'a mut [Bitboard], magics: &'a mut [Magic<'a>]) {
-    let mut occupancy = [Bitboard::new(0); 4096];
-    let mut reference = [Bitboard::new(0); 4096];
+unsafe fn init_magics(is_rook: bool) {
+    let magics = if is_rook { &mut ROOK_MAGICS } else { &mut BISHOP_MAGICS };
+    let table = if is_rook { &mut ROOK_TABLE[..] } else { &mut BISHOP_TABLE[..] };
+
+    let mut b: Bitboard;
     let mut edges: Bitboard;
-    let mut b = Bitboard::new(0);
-    let mut epoch = [0; 4096];
+
+    let mut occs = [Bitboard::new(0); 4096];
+    let mut atts = [Bitboard::new(0); 4096];
+
     let mut count = 0;
     let mut size = 0;
+    let mut epoch = [0; 4096];
 
-    for s in (0..64).map(|x| Square::new(x)) {
-        let e_rank = (Rank::One.to_bitboard() | Rank::Eight.to_bitboard()) &! s.rank().to_bitboard();
-        let e_file = (File::A.to_bitboard() | File::H.to_bitboard()) &! s.file().to_bitboard();
-        edges = e_rank | e_file;
+    for s in (0..64).map(|sq_idx| Square::new(sq_idx)) {
+        edges = (Rank::One.to_bitboard() | Rank::Eight.to_bitboard()) &! s.rank().to_bitboard();
+        edges |= (File::A.to_bitboard() | File::H.to_bitboard()) &! s.file().to_bitboard();
 
-        // do this first to avoid reference sharing
-        let new_index = if s.as_u8() == 0 { 0 } else { magics[s.as_u8() as usize - 1].index + size };
+        let ptr = if s == Square::A1 { 0 } else { magics[s.as_usize() - 1].ptr };
+        let m = &mut magics[s.as_usize()];
+        m.mask = sliding_attack(s, is_rook, Bitboard::new(0)) &! edges;
+        m.shift = 64 - m.mask.popcount();
+        m.ptr = ptr + size;
 
-        let m = &mut magics[s.as_u8() as usize];
-        m.mask = sliding_attack(s, is_rook, Bitboard::new(0)) & !edges;
-        m.shift = 64 - m.mask.popcount() as i32;
-        m.index = new_index;
-
-        b ^= b;
         size = 0;
+        b = Bitboard::new(0);
 
-        loop {
-            occupancy[size] = b;
-            reference[size] = sliding_attack(s, is_rook, b);
+        while b.gtz() || size == 0 {
+            occs[size] = b;
+            atts[size] = sliding_attack(s, is_rook, b);
 
             if cfg!(feature = "pext") {
-                table[m.index + pext!(b.as_u64(), m.mask.as_u64())] = reference[size];
+                table[m.ptr + pext!(b.as_u64(), m.mask.as_u64())] = atts[size];
             }
 
             size += 1;
-            b = b.carry_ripple(m.mask);
-
-            if !b.gtz() { break; }
+            b = (b - m.mask) & m.mask;
         }
 
-        #[cfg(feature = "pext")]
-        continue;
+        m.width = size;
 
-        let mut prng = RandU64::new(SEEDS[s.rank().as_usize()]);
+        if cfg!(feature = "pext") {
+            continue;
+        }
+
+        let mut prng = PRNG::new(SEEDS[s.rank().as_usize()]);
+
         let mut i = 0;
         while i < size {
-            m.multiplier = 0;
-            while (m.multiplier.wrapping_mul(m.mask.as_u64()) >> 56).count_ones() < 6 {
-                m.multiplier = prng.fetch_new_sparse();
+            m.magic = Bitboard::new(0);
+            while ((m.magic * m.mask) >> 56).popcount() < 6 {
+                m.magic = prng.get_sparse::<Bitboard>();
             }
 
             count += 1;
             i = 0;
-            while i < size {
-                let idx = m.offset(occupancy[i]);
+            'thisone: while i < size {
+                let idx = m.offset(occs[i]);
 
                 if epoch[idx] < count {
                     epoch[idx] = count;
-                    table[m.index + idx] = reference[i];
-                } else if table[m.index + idx] != reference[i] {
-                    break;
+                    table[m.ptr + idx] = atts[i];
+                } else if table[m.ptr + idx] != atts[i] {
+                    break 'thisone;
                 }
 
                 i += 1;
             }
         }
+
     }
 
     for m in magics {
-        m.attacks = &table[m.index..];
+        m.attacks = &table[m.ptr..m.ptr + m.width];
     }
+
+    // TODO 
 }
 
-
-pub(crate) fn sliding_attack(square: Square, is_rook: bool, occupied: Bitboard) -> Bitboard {
+fn sliding_attack(square: Square, is_rook: bool, occupied_squares: Bitboard) -> Bitboard {
     let mut rv = Bitboard::new(0);
 
-    let shifts = if is_rook {
-        [8, -8, 1, -1]
+    let shift_amounts: [i32; 4] = if is_rook {
+        [1, -1, 8, -8]
     } else {
-        [7, 9, -7, -9]
+        [7, -7, 9, -9]
     };
 
-    for shift in shifts {
-        let mut s = square;
-        while let Some(o) = s.offset(shift) {
-            if o.distance(s) <= 2 && !(occupied & s.into()).gtz() {
-                rv |= o.into();
-                s = o;
-            } else { break; }
+    let fa = File::A.to_bitboard();
+    let fh = File::H.to_bitboard();
+    let r1 = Rank::One.to_bitboard();
+    let r8 = Rank::Eight.to_bitboard();
+
+    for shift in shift_amounts {
+        let mut sb: Bitboard = square.into();
+        let mut curshift = Bitboard::new(0);
+        while sb.gtz() & !(curshift & occupied_squares).gtz() {
+            sb = match shift {
+                8 => (sb << 8) &! r1,
+                1 => (sb << 1) &! fa,
+                -1 => (sb >> 1) &! fh,
+                -8 => (sb >> 8) &! r8,
+                9 => (sb << 9) &! (fa | r1),
+                -7 => (sb >> 7) &! (fa | r8),
+                -9 => (sb >> 9) &! (fh | r8),
+                7 => (sb << 7) &! (fh | r1),
+                _ => unreachable!(),
+            };
+
+            curshift |= sb;
         }
+        rv |= curshift;
     }
 
     rv
 }
 
-pub(crate) fn get_sliding_attack(is_rook: bool, square: Square, occupancy: Bitboard) -> Bitboard {
+pub fn magic_lookup(is_rook: bool, square: Square, occupied: Bitboard) -> Bitboard {
     debug_assert!(square.is_ok());
-    let magic = unsafe { if is_rook {
-        ROOK_MAGICS[square.as_u8() as usize]
-    } else {
-        BISHOP_MAGICS[square.as_u8() as usize]
-    }};
+    let magics = unsafe { if is_rook { ROOK_MAGICS } else { BISHOP_MAGICS } };
+    let m = magics[square.as_usize()];
 
-    magic.attacks[magic.offset(occupancy)] 
+    m.attacks[m.offset(occupied)]
 }
-

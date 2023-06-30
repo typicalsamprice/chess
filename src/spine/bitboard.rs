@@ -51,7 +51,7 @@ pub(crate) fn initialize_bitboards() {
                 for shift in [1, 7, 8, 9, -1, -7, -8, -9] {
                     if let Some(off) = s.offset(shift) {
                         if s.distance(off) <= 2 {
-                            rv |= off.into();
+                            rv |= off.to_bitboard();
                         }
                     }
                 }
@@ -62,16 +62,17 @@ pub(crate) fn initialize_bitboards() {
         for pt in [PieceType::Bishop, PieceType::Rook] {
             for j in 0..64 {
                 let sj = Square::new(j);
-                if (piece_attack(s, Bitboard::new(0), pt, Color::White) & sj.into()).gtz() {
+                if (piece_attack(s, Bitboard::new(0), pt, Color::White) & sj.to_bitboard()).gtz() {
                     unsafe {
                         LINE_BB[i as usize][j as usize] =
                             piece_attack(s, Bitboard::new(0), pt, Color::White) &
-                            piece_attack(sj, Bitboard::new(0), pt, Color::White) | s.into() | sj.into();
+                            piece_attack(sj, Bitboard::new(0), pt, Color::White)
+                            | Bitboard::from([s, sj]);
                         BETWEEN_BB[i as usize][j as usize] = piece_attack(s, sj.into(), pt, Color::White)
                             & piece_attack(sj, s.into(), pt, Color::White);
                     }
                 }
-                unsafe { BETWEEN_BB[i as usize][j as usize] |= sj.into(); }
+                unsafe { BETWEEN_BB[i as usize][j as usize] |= sj.to_bitboard(); }
             }
         }
     }
@@ -128,13 +129,6 @@ impl Bitboard {
         debug_assert!(self.gtz());
         self.0.trailing_zeros()
     }
-
-    #[inline(always)]
-    pub const fn carry_ripple(self, carrier: Self) -> Self {
-        let a = self.0;
-        let b = carrier.0;
-        Self(a.wrapping_sub(b) & b)
-    }
 }
 
 impl ops::Not for Bitboard {
@@ -144,57 +138,100 @@ impl ops::Not for Bitboard {
     }
 }
 
-impl ops::BitOr for Bitboard {
+impl<T> ops::BitOr<T> for Bitboard
+    where T: Into<Self>
+{
     type Output = Self;
-    fn bitor(self, rhs: Self) -> Self {
-        Self(self.0 | rhs.0)
+    fn bitor(self, rhs: T) -> Self {
+        Self(self.0 | rhs.into().0)
     }
 } 
 
-impl ops::BitOrAssign for Bitboard {
-    fn bitor_assign(&mut self, rhs: Self) {
-        self.0 |= rhs.0;
+impl<T> ops::BitOrAssign<T> for Bitboard
+    where T: Into<Self>, Self: ops::BitOr<T>
+{
+    fn bitor_assign(&mut self, rhs: T) {
+        self.0 |= rhs.into().0;
     }
 }
 
-impl ops::BitAnd for Bitboard {
+impl<T> ops::BitAnd<T> for Bitboard
+    where T: Into<Self>
+{
     type Output = Self;
-    fn bitand(self, rhs: Self) -> Self {
-        Self(self.0 & rhs.0)
+    fn bitand(self, rhs: T) -> Self {
+        Self(self.0 & rhs.into().0)
     }
 } 
 
-impl ops::BitAndAssign for Bitboard {
-    fn bitand_assign(&mut self, rhs: Self) {
-        self.0 &= rhs.0;
+impl<T> ops::BitAndAssign<T> for Bitboard
+    where T: Into<Self>, Self: ops::BitAnd<T>
+{
+    fn bitand_assign(&mut self, rhs: T) {
+        self.0 &= rhs.into().0;
     }
 }
 
-impl ops::BitXor for Bitboard {
+impl<T> ops::BitXor<T> for Bitboard
+    where T: Into<Self>
+{
     type Output = Self;
-    fn bitxor(self, rhs: Self) -> Self {
-        Self(self.0 ^ rhs.0)
+    fn bitxor(self, rhs: T) -> Self {
+        Self(self.0 ^ rhs.into().0)
     }
 }
 
-impl ops::BitXorAssign for Bitboard {
-    fn bitxor_assign(&mut self, rhs: Self) {
-        self.0 ^= rhs.0;
+impl<T> ops::BitXorAssign<T> for Bitboard
+    where T: Into<Self>, Self: ops::BitXor<T>
+{
+    fn bitxor_assign(&mut self, rhs: T) {
+        self.0 ^= rhs.into().0;
     }
 }
 
-impl ops::Shl<i32> for Bitboard {
+impl<T> ops::Shl<T> for Bitboard
+    where u64: ops::Shl<T, Output = u64>
+{
     type Output = Self;
-    fn shl(self, shift: i32) -> Self {
-        Self(self.0 << shift)
+    fn shl(self, shift: T) -> Self {
+        Self(self.0.shl(shift))
     }
 }
 
-impl ops::Shr<i32> for Bitboard {
+impl<T> ops::Shr<T> for Bitboard
+    where u64: ops::Shr<T, Output = u64>
+{
     type Output = Self;
-    fn shr(self, shift: i32) -> Self {
-        Self(self.0 >> shift)
+    fn shr(self, shift: T) -> Self {
+        Self(self.0.shr(shift))
     }
+}
+
+impl ops::Sub for Bitboard {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self {
+        Self(self.0.wrapping_sub(rhs.0))
+    }
+}
+impl ops::Mul for Bitboard {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self {
+        Self(self.0.wrapping_mul(rhs.0))
+    }
+}
+
+impl<const N: usize> From<[Square; N]> for Bitboard {
+    fn from(sqs: [Square; N]) -> Self {
+        debug_assert!(N > 0);
+        let mut s = 0;
+        for i in 0..N {
+            s |= 1 << sqs[i].as_u8();
+        }
+        Self(s)
+    }
+}
+impl From<u64> for Bitboard {
+    fn from(v: u64) -> Self { Self(v) }
 }
 
 impl fmt::Display for Bitboard {
