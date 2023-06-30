@@ -1,12 +1,12 @@
 use crate::spine::Color;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PieceType {
     Pawn, Knight, Bishop,
     Rook, Queen, King
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Piece {
     kind: PieceType,
     color: Color

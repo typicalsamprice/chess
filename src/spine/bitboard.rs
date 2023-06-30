@@ -8,16 +8,15 @@ use std::fmt;
 use std::mem::transmute;
 
 pub(crate) static mut SQUARE_DIST: [[i32; 64]; 64] = [[0; 64]; 64];
-pub(crate) static mut PAWN_ATTACKS: [[Bitboard; 64]; 2] = [[Bitboard::new(0); 64]; 2];
-pub(crate) static mut PSEUDO_ATTACKS: [[Bitboard; 64]; 2] = [[Bitboard::new(0); 64]; 2];
-static mut LINE_BB: [[Bitboard; 64]; 64] = [[Bitboard::new(0); 64]; 64];
-static mut BETWEEN_BB: [[Bitboard; 64]; 64] = [[Bitboard::new(0); 64]; 64];
+pub(crate) static mut PAWN_ATTACKS: [[Bitboard; 64]; 2] = [[Bitboard::ZERO; 64]; 2];
+pub(crate) static mut PSEUDO_ATTACKS: [[Bitboard; 64]; 2] = [[Bitboard::ZERO; 64]; 2];
+static mut LINE_BB: [[Bitboard; 64]; 64] = [[Bitboard::ZERO; 64]; 64];
+static mut BETWEEN_BB: [[Bitboard; 64]; 64] = [[Bitboard::ZERO; 64]; 64];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Bitboard(u64);
 
 pub(crate) fn initialize_bitboards() {
-
     for i in 0..64 {
         for j in 0..64 {
             let s = Square::new(i);
@@ -46,27 +45,17 @@ pub(crate) fn initialize_bitboards() {
             PAWN_ATTACKS[Color::White.as_usize()][i as usize] = pawn_attacks_by_board(s.into(), Color::White);
             PAWN_ATTACKS[Color::Black.as_usize()][i as usize] = pawn_attacks_by_board(s.into(), Color::Black);
             PSEUDO_ATTACKS[0][i as usize] = knight_attacks_by_board(s.into());
-            PSEUDO_ATTACKS[1][i as usize] = {
-                let mut rv = Bitboard::new(0);
-                for shift in [1, 7, 8, 9, -1, -7, -8, -9] {
-                    if let Some(off) = s.offset(shift) {
-                        if s.distance(off) <= 2 {
-                            rv |= off.to_bitboard();
-                        }
-                    }
-                }
-                rv
-            };
+            PSEUDO_ATTACKS[1][i as usize] = king_attacks_comp(s);
         }
 
         for pt in [PieceType::Bishop, PieceType::Rook] {
             for j in 0..64 {
                 let sj = Square::new(j);
-                if (piece_attack(s, Bitboard::new(0), pt, Color::White) & sj.to_bitboard()).gtz() {
+                if (piece_attack(s, Bitboard::ZERO, pt, Color::White) & sj.to_bitboard()).gtz() {
                     unsafe {
                         LINE_BB[i as usize][j as usize] =
-                            piece_attack(s, Bitboard::new(0), pt, Color::White) &
-                            piece_attack(sj, Bitboard::new(0), pt, Color::White)
+                            piece_attack(s, Bitboard::ZERO, pt, Color::White) &
+                            piece_attack(sj, Bitboard::ZERO, pt, Color::White)
                             | Bitboard::from([s, sj]);
                         BETWEEN_BB[i as usize][j as usize] = piece_attack(s, sj.into(), pt, Color::White)
                             & piece_attack(sj, s.into(), pt, Color::White);
@@ -85,6 +74,9 @@ impl Default for Bitboard {
 }
 
 impl Bitboard {
+    pub const ZERO: Self = Self(0);
+    pub const MAX: Self = Self(u64::MAX);
+
     #[inline(always)]
     pub const fn new(value: u64) -> Self {
         Self(value)
@@ -125,10 +117,20 @@ impl Bitboard {
     }
 
     #[inline(always)]
-    pub const fn ctz(self) -> u32 {
+    pub const fn lsb(self) -> Square {
         debug_assert!(self.gtz());
-        self.0.trailing_zeros()
+        Square::new(self.0.trailing_zeros() as u8)
     }
+    #[inline]
+    pub fn pop_lsb(&mut self) -> Option<Square> {
+        if self.gtz() {
+            let s = self.lsb();
+            self.0 &= self.0 - 1;
+            return Some(s);
+        } 
+        return None;
+    }
+
 }
 
 impl ops::Not for Bitboard {

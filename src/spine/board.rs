@@ -1,7 +1,7 @@
 use crate::spine::{Bitboard, Color, File, Move, Piece, PieceType, Rank, Square};
 use std::rc::Rc;
 
-#[derive(Clone)]
+#[derive(Debug)]
 pub struct Board {
     color_bb: [Bitboard; Color::COUNT],
     piece_bb: [Bitboard; PieceType::COUNT],
@@ -9,10 +9,9 @@ pub struct Board {
     piece_count: [i8; PieceType::COUNT * Color::COUNT],
     to_move: Color,
     ply: usize,
-
-    state: Rc<State>
 }
 
+pub type HState = Box<State>;
 pub struct State {
     castle_rights: CastleRights,
     en_passant: Option<Square>,
@@ -23,112 +22,85 @@ pub struct State {
     check_squares: [Bitboard; PieceType::COUNT],
     blockers: [Bitboard; Color::COUNT],
     pinners: [Bitboard; Color::COUNT],
-    captured_piece: Option<PieceType>
-}
+    captured_piece: Option<PieceType>,
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct CastleRights(u8);
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum BoardCreationError {
-    NoFenGiven,
-    InvalidPiece,
-    InvalidColor,
-    InvalidCastleRights,
-    InvalidEnPassant,
-    InvalidNumber
+    prev: Option<HState>
 }
 
 impl Board {
-    pub fn from_fen(fen: &str) -> Result<Self, BoardCreationError> {
-        let mut b = Self {
-            color_bb: [Bitboard::new(0); Color::COUNT],
-            piece_bb: [Bitboard::new(0); PieceType::COUNT],
-            pieces: [None; Square::COUNT],
-            piece_count: [0; PieceType::COUNT * Color::COUNT],
-            to_move: Color::White,
-            ply: 0,
-            state: Rc::new(State::new())
-        };
-        Err(BoardCreationError::NoFenGiven)
-    }
-
-    #[inline(always)] 
-    pub const fn color(&self, color: Color) -> Bitboard { self.color_bb[color.as_usize()] }
-    #[inline(always)] 
-    pub const fn piece_type(&self, piece_type: PieceType) -> Bitboard { self.piece_bb[piece_type.as_usize()] }
-    #[inline]
-    pub fn spec(&self, piece: Piece) -> Bitboard {
-        self.color(piece.color()) & self.piece_type(piece.kind())
-    }
-    #[inline(always)] 
-    pub const fn to_move(&self) -> Color { self.to_move }
     #[inline(always)]
-    pub const fn piece_on(&self, square: Square) -> Option<Piece> {
+    pub const fn color(&self, color: Color) -> Bitboard {
+        self.color_bb[color.as_usize()]
+    }
+    #[inline(always)]
+    pub const fn piece_type(&self, pt: PieceType) -> Bitboard {
+        self.piece_bb[pt.as_usize()]
+    }
+    #[inline(always)]
+    pub fn spec(&self, color: Color, pt: PieceType) -> Bitboard {
+        self.color(color) & self.piece_type(pt)
+    }
+    #[inline(always)]
+    pub const fn get_piece(&self, square: Square) -> Option<Piece> {
         debug_assert!(square.is_ok());
         self.pieces[square.as_usize()]
     }
     #[inline(always)]
-    pub const fn is_empty(&self, square: Square) -> bool {
-        self.piece_on(square).is_none()
+    pub const fn piece_count(&self, color: Color, pt: PieceType) -> i8 {
+        self.piece_count[PieceType::COUNT * color.as_usize() + pt.as_usize()]
     }
     #[inline(always)]
+    pub const fn to_move(&self) -> Color {
+        self.to_move
+    }
+    #[inline(always)]
+    pub const fn ply(&self) -> usize {
+        self.ply
+    }
+
     pub fn king(&self, color: Color) -> Square {
-        Square::new(self.spec(Piece::new(PieceType::King, color)).ctz() as u8)
-    }
-    #[inline(always)]
-    pub const fn piece_count(&self, piece: Piece) -> i8 {
-        self.piece_count[piece.as_usize()]
-    } 
-    pub const fn total_piece_count(&self, piece_type: PieceType) -> i8 {
-        self.piece_count(Piece::new(piece_type, Color::White))
-        + self.piece_count(Piece::new(piece_type, Color::Black))
+        self.spec(color, PieceType::King).lsb()
     }
 
-    #[inline(always)]
-    pub fn state(&self) -> Rc<State> {
-        Rc::clone(&self.state)
-    }
+    pub fn is_legal(&self, s: &State, mv: Move) -> bool { todo!() }
+    pub fn is_pseudo_legal(&self, s: &State, mv: Move) -> bool { todo!() }
 
-    pub fn is_ok(&self) -> bool {
-        let wk = self.king(Color::White);
-        let bk = self.king(Color::Black);
-        if !(wk.is_ok() && bk.is_ok()) {
-            return false;
-        }
-        todo!()
-    }
+    // use HState.borrow_mut() for these types of things
+    pub fn compute_state(&self, s: &mut State) {}
 
-    pub fn is_legal(&self, m: Move) -> bool { todo!() }
-    pub fn is_pseudo_legal(&self, m: Move) -> bool { todo!() }
-
-    pub fn play_move(&mut self, m: Move) { todo!() }
-    pub fn undo_move(&mut self, m: Move) { todo!() }
-
-    pub fn attacks_to_square(&self, square: Square) -> Bitboard { todo!() }
-    pub fn attacks_to_square_from(&self, square: Square, color: Color) -> Bitboard {
-        self.attacks_to_square(square) & self.color(color)
-    }
+    pub fn do_move(&mut self, s: &mut State, mv: Move) {}
+    pub fn undo_move(&mut self, s: &mut State, mv: Move) {}
 }
 
 impl State {
-    pub fn new() -> Self { todo!() }
+    pub const fn new(prev: Option<HState>) -> Self {
+        let mut s = Self {
+            castle_rights: CastleRights::new(0),
+            en_passant: None,
+            half_moves: 0,
+            plies_from_null: 0,
+
+            checkers: Bitboard::ZERO,
+            check_squares: [Bitboard::ZERO; PieceType::COUNT],
+            blockers: [Bitboard::ZERO; Color::COUNT],
+            pinners: [Bitboard::ZERO; Color::COUNT],
+            captured_piece: None,
+            prev,
+        };
+
+        if let Some(st) = s.prev.as_ref() {
+            s.en_passant = st.en_passant;
+            s.castle_rights = st.castle_rights;
+            s.half_moves = st.half_moves;
+            s.plies_from_null = st.plies_from_null;
+        }
+
+        s
+    }
 
     #[inline(always)]
-    pub const fn checkers(&self) -> Bitboard {
-        self.checkers
-    }
-    #[inline(always)]
-    pub const fn blockers(&self, color: Color) -> Bitboard {
-        self.blockers[color.as_usize()]
-    }
-    #[inline(always)]
-    pub const fn pinners(&self, color: Color) -> Bitboard {
-        self.pinners[color.as_usize()]
-    }
-    #[inline(always)]
-    pub const fn check_squares(&self, piece_type: PieceType) -> Bitboard {
-        self.check_squares[piece_type.as_usize()]
+    pub const fn castle_rights(&self) -> CastleRights {
+        self.castle_rights
     }
     #[inline(always)]
     pub const fn en_passant(&self) -> Option<Square> {
@@ -138,25 +110,36 @@ impl State {
     pub const fn plies_from_null(&self) -> usize {
         self.plies_from_null
     }
+
     #[inline(always)]
-    pub const fn half_moves(&self) -> usize {
-        self.half_moves
+    pub const fn checkers(&self) -> Bitboard { self.checkers }
+    #[inline(always)]
+    pub const fn blockers(&self, color: Color) -> Bitboard { self.blockers[color.as_usize()] }
+    #[inline(always)]
+    pub const fn pinners(&self, color: Color) -> Bitboard { self.pinners[color.as_usize()] }
+
+    #[inline(always)]
+    pub fn prev(&self) -> Option<&Self> {
+        self.prev.as_deref()
     }
 
-    pub fn clone(&self) -> Self {
-        Self {
-            castle_rights: self.castle_rights,
-            en_passant: self.en_passant,
-            half_moves: self.half_moves,
-            plies_from_null: self.plies_from_null,
-
-            checkers: Bitboard::new(0),
-            check_squares: [Bitboard::new(0); PieceType::COUNT],
-            blockers: [Bitboard::new(0); Color::COUNT],
-            pinners: [Bitboard::new(0); Color::COUNT],
-            captured_piece: None
-        }
+    #[inline(always)]
+    pub fn destroy_and_get_prev(self) -> Option<HState> {
+        self.prev
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CastleRights(u8);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoardCreationError {
+    NoFenGiven,
+    InvalidPiece,
+    InvalidColor,
+    InvalidCastleRights,
+    InvalidEnPassant,
+    InvalidNumber
 }
 
 impl CastleRights {
@@ -178,6 +161,21 @@ impl CastleRights {
     #[inline(always)]
     pub const fn has_any_rights(self, rights: u8) -> bool {
         self.0 & rights > 0
+    }
+}
+
+pub struct InvalidCastleRightsChar;
+impl TryFrom<char> for CastleRights {
+    type Error = InvalidCastleRightsChar;
+    fn try_from(value: char) -> Result<Self, Self::Error> {
+        match value {
+            'K' => Ok(Self(Self::W_OO)),
+            'Q' => Ok(Self(Self::W_OOO)),
+            'k' => Ok(Self(Self::B_OO)),
+            'q' => Ok(Self(Self::B_OOO)),
+            '-' => Ok(Self(0)),
+            _ => Err(InvalidCastleRightsChar)
+        } 
     }
 }
 

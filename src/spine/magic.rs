@@ -19,8 +19,8 @@ impl Magic {
     #[inline(always)]
     pub const fn new() -> Self {
         Self {
-            magic: Bitboard::new(0),
-            mask: Bitboard::new(0),
+            magic: Bitboard::ZERO,
+            mask: Bitboard::ZERO,
             shift: 0,
             attacks: &[],
             width: 0, // Such that attacks.len() == width
@@ -41,8 +41,8 @@ impl Magic {
 static mut ROOK_MAGICS: [Magic; 64] = [Magic::new(); 64];
 static mut BISHOP_MAGICS: [Magic; 64] = [Magic::new(); 64];
 
-static mut ROOK_TABLE: [Bitboard; 0x19000] = [Bitboard::new(0); 0x19000];
-static mut BISHOP_TABLE: [Bitboard; 0x1480] = [Bitboard::new(0); 0x1480];
+static mut ROOK_TABLE: [Bitboard; 0x19000] = [Bitboard::ZERO; 0x19000];
+static mut BISHOP_TABLE: [Bitboard; 0x1480] = [Bitboard::ZERO; 0x1480];
 
 const SEEDS: [u64; 8] = [728, 10316, 55013, 32803, 12281, 15100, 16645, 255];
 
@@ -60,8 +60,8 @@ unsafe fn init_magics(is_rook: bool) {
     let mut b: Bitboard;
     let mut edges: Bitboard;
 
-    let mut occs = [Bitboard::new(0); 4096];
-    let mut atts = [Bitboard::new(0); 4096];
+    let mut occs = [Bitboard::ZERO; 4096];
+    let mut atts = [Bitboard::ZERO; 4096];
 
     let mut count = 0;
     let mut size = 0;
@@ -73,12 +73,12 @@ unsafe fn init_magics(is_rook: bool) {
 
         let ptr = if s == Square::A1 { 0 } else { magics[s.as_usize() - 1].ptr };
         let m = &mut magics[s.as_usize()];
-        m.mask = sliding_attack(s, is_rook, Bitboard::new(0)) &! edges;
+        m.mask = sliding_attack(s, is_rook, Bitboard::ZERO) &! edges;
         m.shift = 64 - m.mask.popcount();
         m.ptr = ptr + size;
 
         size = 0;
-        b = Bitboard::new(0);
+        b = Bitboard::ZERO;
 
         while b.gtz() || size == 0 {
             occs[size] = b;
@@ -102,7 +102,7 @@ unsafe fn init_magics(is_rook: bool) {
 
         let mut i = 0;
         while i < size {
-            m.magic = Bitboard::new(0);
+            m.magic = Bitboard::ZERO;
             while ((m.magic * m.mask) >> 56).popcount() < 6 {
                 m.magic = prng.get_sparse::<Bitboard>();
             }
@@ -133,7 +133,7 @@ unsafe fn init_magics(is_rook: bool) {
 }
 
 fn sliding_attack(square: Square, is_rook: bool, occupied_squares: Bitboard) -> Bitboard {
-    let mut rv = Bitboard::new(0);
+    let mut rv = Bitboard::ZERO;
 
     let shift_amounts: [i32; 4] = if is_rook {
         [1, -1, 8, -8]
@@ -148,7 +148,7 @@ fn sliding_attack(square: Square, is_rook: bool, occupied_squares: Bitboard) -> 
 
     for shift in shift_amounts {
         let mut sb: Bitboard = square.into();
-        let mut curshift = Bitboard::new(0);
+        let mut curshift = Bitboard::ZERO;
         while sb.gtz() & !(curshift & occupied_squares).gtz() {
             sb = match shift {
                 8 => (sb << 8) &! r1,

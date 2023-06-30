@@ -14,8 +14,11 @@ pub fn pawn_attacks_by_board(pawns: Bitboard, color: Color) -> Bitboard {
     }
 }
 
-pub(crate) fn king_attacks(square: Square) -> Bitboard {
-    let mut rv = Bitboard::new(0);
+pub fn king_attacks(square: Square) -> Bitboard {
+    unsafe { PSEUDO_ATTACKS[1][square.as_usize()] }
+}
+pub(crate) fn king_attacks_comp(square: Square) -> Bitboard {
+    let mut rv = Bitboard::ZERO;
     for shift in [1, 7, 8, 9, -1, -7, -8, -9] {
         if let Some(off) = square.offset(shift) {
             if square.distance(off) <= 2 {
@@ -32,7 +35,7 @@ pub fn knight_attacks(square: Square) -> Bitboard {
 }
 
 pub fn knight_attacks_by_board(knights: Bitboard) -> Bitboard {
-    let mut rv = Bitboard::new(0);
+    let mut rv = Bitboard::ZERO;
 
     rv |= ((knights << 15) | (knights >> 17)) & !File::A.to_bitboard();
     rv |= ((knights >> 15) | (knights << 17)) & !File::H.to_bitboard();
