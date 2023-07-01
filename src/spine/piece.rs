@@ -1,5 +1,7 @@
 use crate::spine::Color;
 
+use std::fmt;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PieceType {
     Pawn, Knight, Bishop,
@@ -39,5 +41,14 @@ impl Piece {
 
     pub fn is_slider(&self) -> bool {
         self.kind <= PieceType::Queen && self.kind >= PieceType::Bishop
+    }
+}
+
+impl fmt::Display for Piece {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let pcs = b"pnbrqk";
+        let ch = pcs[self.kind().as_usize()] as char;
+        let c = if self.color() == Color::White { ch.to_ascii_uppercase() } else { ch };
+        write!(f, "{c}")
     }
 }
