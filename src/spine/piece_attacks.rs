@@ -13,6 +13,10 @@ pub fn pawn_attacks_by_board(pawns: Bitboard, color: Color) -> Bitboard {
         Color::Black => ((pawns >> 7) &! File::A.to_bitboard()) | ((pawns >> 9) & !File::H.to_bitboard())
     }
 }
+pub fn pawn_attacks(square: Square, color: Color) -> Bitboard {
+    debug_assert!(square.is_ok());
+    unsafe { PAWN_ATTACKS[color.as_usize()][square.as_usize()] }
+}
 
 pub fn king_attacks(square: Square) -> Bitboard {
     unsafe { PSEUDO_ATTACKS[1][square.as_usize()] }
@@ -53,15 +57,4 @@ pub fn rook_attacks(square: Square, occupancy: Bitboard) -> Bitboard {
 }
 pub fn queen_attacks(square: Square, occupancy: Bitboard) -> Bitboard {
     bishop_attacks(square, occupancy) | rook_attacks(square, occupancy)
-}
-
-pub fn piece_attack(square: Square, occupancy: Bitboard, piece_type: PieceType, color: Color) -> Bitboard {
-    match piece_type {
-        PieceType::Pawn => unsafe { PAWN_ATTACKS[color.as_usize()][square.as_usize()] }
-        PieceType::Knight => unsafe { PSEUDO_ATTACKS[0][square.as_usize()] },
-        PieceType::Bishop => bishop_attacks(square, occupancy),
-        PieceType::Rook => rook_attacks(square, occupancy),
-        PieceType::Queen => queen_attacks(square, occupancy),
-        PieceType::King => unsafe { PSEUDO_ATTACKS[1][square.as_usize()] }
-    }
 }

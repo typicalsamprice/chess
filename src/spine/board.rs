@@ -1,7 +1,18 @@
 use crate::spine::{Bitboard, Color, File, Move, Piece, PieceType, Rank, Square};
+use crate::bitboard;
 
 use std::fmt;
 use std::mem::transmute;
+
+use super::piece_attacks;
+
+macro_rules! ret_false_if {
+    ($cond:expr) => {
+        if $cond {
+            return false;
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Board {
@@ -35,8 +46,16 @@ impl Board {
         self.color_bb[color.as_usize()]
     }
     #[inline(always)]
+    pub const fn all(&self) -> Bitboard {
+        self.color(Color::White).const_or(self.color(Color::Black))
+    }
+    #[inline(always)]
     pub const fn piece_type(&self, pt: PieceType) -> Bitboard {
         self.piece_bb[pt.as_usize()]
+    }
+    #[inline(always)]
+    pub fn piece_type2(&self, pt1: PieceType, pt2: PieceType) -> Bitboard {
+        self.piece_type(pt1) | self.piece_type(pt2)
     }
     #[inline(always)]
     pub fn spec(&self, color: Color, pt: PieceType) -> Bitboard {
@@ -65,14 +84,129 @@ impl Board {
         self.spec(color, PieceType::King).lsb()
     }
 
-    // use StateP.borrow()?
-    pub fn is_legal(&self, s: &State, mv: Move) -> bool { todo!() }
-    pub fn is_pseudo_legal(&self, s: &State, mv: Move) -> bool { todo!() }
+    pub fn attacks_to(&self, square: Square) -> Bitboard {
+        let knights = piece_attacks::knight_attacks(square) & self.piece_type(PieceType::Knight);
+        let wpawns = piece_attacks::pawn_attacks(square, Color::White) & self.spec(Color::Black, PieceType::Pawn);
+        let bpawns = piece_attacks::pawn_attacks(square, Color::Black) & self.spec(Color::White, PieceType::Pawn);
+        let rooks = piece_attacks::rook_attacks(square, self.all()) & self.piece_type2(PieceType::Rook, PieceType::Queen);
+        let bishops = piece_attacks::bishop_attacks(square, self.all()) & self.piece_type2(PieceType::Bishop, PieceType::Queen);
+        let kings = piece_attacks::king_attacks(square) & self.piece_type(PieceType::King);
+
+        knights | wpawns | bpawns | rooks | bishops | kings
+    }
+
+    pub fn is_legal(&self, s: &State, mv: Move) -> bool { 
+        ret_false_if!(!self.is_pseudo_legal(s, mv));
+
+        true
+    }
+    
+    pub fn is_pseudo_legal(&self, s: &State, mv: Move) -> bool {
+        let f = mv.from_square();
+        let t = mv.to_square();
+        let us = self.to_move();
+        let them = !us;
+
+        ret_false_if!(f.distance(t) == 0);
+
+        let Some(mp) = self.get_piece(f) else { return false; };
+        ret_false_if!(mp.color() != us);
+
+        let captured_piece = if let Some(cp) = self.get_piece(t) {
+            ret_false_if!(cp.color() == us);
+            Some(cp)
+        } else { None };
+
+        if mp.kind() == PieceType::Pawn {
+            match f.distance(t) {
+                0 => unreachable!(),
+                1 => {
+                    match us {
+                        Color::White => ret_false_if!(f > t),
+                        Color::Black => ret_false_if!(f < t),
+                    }
+
+                    if f.file() == t.file() {
+                        ret_false_if!(captured_piece.is_some());
+                    } else {
+                        ret_false_if!(captured_piece.is_none());
+                    }
+                },
+                2 => {
+                    ret_false_if!(f.rank() != Rank::Two.relative_to(us));
+                    ret_false_if!(f.file() != t.file());
+                    let sum = f.as_u8() + t.as_u8();
+                    let ibw_val = sum / 2;
+                    let ibw = Square::new(ibw_val);
+                    ret_false_if!(self.get_piece(ibw).is_some());
+                },
+                _ => return false,
+            }
+        }
+
+        true
+    }
 
     // use StateP.borrow_mut() for these types of things
-    pub fn compute_state(&self, s: &mut State) {}
-    pub fn do_move(&mut self, s: &mut State, mv: Move) {}
-    pub fn undo_move(&mut self, s: &mut State, mv: Move) {}
+    pub fn compute_state(&self, s: &mut State) {
+        const Z: Bitboard = Bitboard::ZERO;
+        let (us, them) = (self.to_move(), !self.to_move());
+
+        // Reset it all
+        s.checkers &= Z;
+        s.blockers[us.as_usize()] &= Z;
+        s.blockers[them.as_usize()] &= Z;
+        s.pinners[us.as_usize()] &= Z;
+        s.pinners[them.as_usize()] &= Z;
+        s.check_squares[PieceType::King.as_usize()] = Z;
+
+        debug_assert!((self.attacks_to(self.king(them)) & self.color(us)).gtz() == false);
+        s.checkers = self.attacks_to(self.king(us)) & self.color(them);
+
+        let rookqs = self.piece_type2(PieceType::Rook, PieceType::Queen);
+        let bishqs = self.piece_type2(PieceType::Bishop, PieceType::Queen);
+
+        let king = self.king(us);
+        let mut bs = piece_attacks::bishop_attacks(king, Z) & bishqs;
+        let mut rs = piece_attacks::rook_attacks(king, Z) & rookqs;
+
+        for (x, isb) in [(bs, true), (rs, false)].iter_mut() {
+            while let Some(slider) = x.pop_lsb() {
+                let line = bitboard::between::<false>(king, slider);
+                if line.gtz() && !line.more_than_one() {
+                    if (self.color(us) & line).gtz() {
+                        s.pinners[them.as_usize()] |= Into::<Bitboard>::into(slider);
+                    }
+                    s.blockers[us.as_usize()] |= line;
+                }
+            }
+        }
+
+        s.check_squares[PieceType::Pawn.as_usize()] = piece_attacks::pawn_attacks(king, us);
+        s.check_squares[PieceType::Knight.as_usize()] = piece_attacks::knight_attacks(king);
+        s.check_squares[PieceType::Bishop.as_usize()] = piece_attacks::bishop_attacks(king, self.all());
+        s.check_squares[PieceType::Rook.as_usize()] = piece_attacks::rook_attacks(king, self.all());
+        s.check_squares[PieceType::Queen.as_usize()] = s.check_squares[PieceType::Bishop.as_usize()]
+            | s.check_squares[PieceType::Rook.as_usize()];
+    }
+
+    pub fn do_move(&mut self, s: &mut StateP, mv: Move) {
+        let newstate = Box::new(State::new(Some(*s)));
+        *s = newstate;
+        s.plies_from_null -= 1;
+
+        let f = mv.from_square();
+        let t = mv.to_square();
+
+        let Some(mp) = self.get_piece(f) else { return; }
+        if mp.is_none() || mp.color() != us {
+
+        }
+
+    }
+    pub fn undo_move(&mut self, s: &mut StateP, mv: Move) {
+        *s = s.replace().unwrap();
+    }
 
     pub fn new<S>(fen: S, state: &mut State) -> Result<Self, BoardCreationError>
         where S: Into<String>

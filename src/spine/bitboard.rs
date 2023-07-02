@@ -13,6 +13,20 @@ pub(crate) static mut PSEUDO_ATTACKS: [[Bitboard; 64]; 2] = [[Bitboard::ZERO; 64
 static mut LINE_BB: [[Bitboard; 64]; 64] = [[Bitboard::ZERO; 64]; 64];
 static mut BETWEEN_BB: [[Bitboard; 64]; 64] = [[Bitboard::ZERO; 64]; 64];
 
+pub fn between<const KEEP_END: bool>(a: Square, b: Square) -> Bitboard {
+    debug_assert!(a.is_ok() && b.is_ok());
+    let k = unsafe { BETWEEN_BB[a.as_usize()][b.as_usize()] };
+    if !KEEP_END { // Remove the end bit
+        k ^ Bitboard::from([b])
+    } else {
+        k
+    }
+}
+pub fn line(a: Square, b: Square) -> Bitboard {
+    debug_assert!(a.is_ok() && b.is_ok());
+    unsafe { LINE_BB[a.as_usize()][b.as_usize()] }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Bitboard(u64);
 

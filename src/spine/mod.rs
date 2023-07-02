@@ -1,23 +1,23 @@
-mod bitboard;
 mod board;
 mod color;
 mod file;
 mod chess_move;
 mod magic;
-mod piece_attacks;
 mod rank;
 mod square;
 mod piece;
 mod prng;
 
-pub use board::*;
+pub mod bitboard;
+pub mod piece_attacks;
+
+pub use bitboard::Bitboard;
+pub use board::{Board, State, StateP};
 pub use color::*;
-pub use bitboard::*;
 pub use file::*;
 pub use chess_move::*;
 pub use rank::*;
 pub use square::*;
 pub use piece::*;
-pub use piece_attacks::*;
 
 pub(crate) use magic::*;
