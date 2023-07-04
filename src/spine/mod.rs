@@ -12,7 +12,7 @@ pub mod bitboard;
 pub mod piece_attacks;
 
 pub use bitboard::Bitboard;
-pub use board::{Board, State, StateP};
+pub use board::{Board, State, BAS};
 pub use color::*;
 pub use file::*;
 pub use chess_move::*;

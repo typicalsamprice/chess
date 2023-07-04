@@ -52,3 +52,10 @@ impl fmt::Display for Piece {
         write!(f, "{c}")
     }
 }
+
+impl std::ops::Add<Color> for PieceType {
+    type Output = Piece;
+    fn add(self, rhs: Color) -> Self::Output {
+        Piece::new(self, rhs)
+    }
+}

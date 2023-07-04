@@ -1,5 +1,6 @@
 use super::initialize_magics;
 use super::{Color, Square};
+use super::{File, Rank};
 use super::piece_attacks::*;
 use super::PieceType;
 
@@ -13,11 +14,11 @@ pub(crate) static mut PSEUDO_ATTACKS: [[Bitboard; 64]; 2] = [[Bitboard::ZERO; 64
 static mut LINE_BB: [[Bitboard; 64]; 64] = [[Bitboard::ZERO; 64]; 64];
 static mut BETWEEN_BB: [[Bitboard; 64]; 64] = [[Bitboard::ZERO; 64]; 64];
 
-pub fn between<const KEEP_END: bool>(a: Square, b: Square) -> Bitboard {
-    debug_assert!(a.is_ok() && b.is_ok());
-    let k = unsafe { BETWEEN_BB[a.as_usize()][b.as_usize()] };
+pub fn between<const KEEP_END: bool>(from: Square, to: Square) -> Bitboard {
+    debug_assert!(from.is_ok() && to.is_ok());
+    let k = unsafe { BETWEEN_BB[from.as_usize()][to.as_usize()] };
     if !KEEP_END { // Remove the end bit
-        k ^ Bitboard::from([b])
+        k ^ to
     } else {
         k
     }
@@ -27,7 +28,7 @@ pub fn line(a: Square, b: Square) -> Bitboard {
     unsafe { LINE_BB[a.as_usize()][b.as_usize()] }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Bitboard(u64);
 
 pub(crate) fn initialize_bitboards() {
@@ -65,14 +66,19 @@ pub(crate) fn initialize_bitboards() {
         for pt in [PieceType::Bishop, PieceType::Rook] {
             for j in 0..64 {
                 let sj = Square::new(j);
-                if (piece_attack(s, Bitboard::ZERO, pt, Color::White) & sj.to_bitboard()).gtz() {
+                let att = match pt {
+                    PieceType::Bishop => |a, o| bishop_attacks(a, o),
+                    PieceType::Rook => |a, o| rook_attacks(a, o),
+                    _ => unreachable!()
+                };
+                if (att(s, Bitboard::ZERO) & sj.to_bitboard()).gtz() {
                     unsafe {
                         LINE_BB[i as usize][j as usize] =
-                            piece_attack(s, Bitboard::ZERO, pt, Color::White) &
-                            piece_attack(sj, Bitboard::ZERO, pt, Color::White)
+                            att(s, Bitboard::ZERO) &
+                            att(sj, Bitboard::ZERO)
                             | Bitboard::from([s, sj]);
-                        BETWEEN_BB[i as usize][j as usize] = piece_attack(s, sj.into(), pt, Color::White)
-                            & piece_attack(sj, s.into(), pt, Color::White);
+                        BETWEEN_BB[i as usize][j as usize] = att(s, sj.into())
+                            & att(sj, s.into());
                     }
                 }
                 unsafe { BETWEEN_BB[i as usize][j as usize] |= sj.to_bitboard(); }
@@ -164,10 +170,10 @@ impl<T> ops::BitOr<T> for Bitboard
 } 
 
 impl<T> ops::BitOrAssign<T> for Bitboard
-    where T: Into<Self>, Self: ops::BitOr<T>
+    where T: Into<Self>, Self: ops::BitOr<T, Output = Self>
 {
     fn bitor_assign(&mut self, rhs: T) {
-        self.0 |= rhs.into().0;
+        *self = *self | rhs;
     }
 }
 
@@ -181,10 +187,10 @@ impl<T> ops::BitAnd<T> for Bitboard
 } 
 
 impl<T> ops::BitAndAssign<T> for Bitboard
-    where T: Into<Self>, Self: ops::BitAnd<T>
+    where T: Into<Self>, Self: ops::BitAnd<T, Output = Self>
 {
     fn bitand_assign(&mut self, rhs: T) {
-        self.0 &= rhs.into().0;
+        *self = *self & rhs;
     }
 }
 
@@ -198,10 +204,10 @@ impl<T> ops::BitXor<T> for Bitboard
 }
 
 impl<T> ops::BitXorAssign<T> for Bitboard
-    where T: Into<Self>, Self: ops::BitXor<T>
+    where T: Into<Self>, Self: ops::BitXor<T, Output = Self>
 {
     fn bitxor_assign(&mut self, rhs: T) {
-        self.0 ^= rhs.into().0;
+        *self = *self ^ rhs;
     }
 }
 
@@ -250,6 +256,39 @@ impl From<u64> for Bitboard {
     fn from(v: u64) -> Self { Self(v) }
 }
 
+impl From<Square> for Bitboard {
+    fn from(s: Square) -> Self {
+       s.to_bitboard()
+    }
+}
+impl From<File> for Bitboard {
+    fn from(f: File) -> Self {
+        Self(0x0101010101010101_u64 << f.as_usize())
+    }
+}
+impl From<Rank> for Bitboard {
+    fn from(r: Rank) -> Self {
+        Self(0xff_u64 << (8 * r.as_usize()))
+    }
+}
+
+impl Iterator for Bitboard {
+    type Item = Square;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0 == 0 {
+            return None;
+        }
+        let l = self.lsb();
+        *self ^= l;
+        Some(l)
+    }
+}
+
+impl fmt::Debug for Bitboard {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Bitboard({:#016x?})", self.0) 
+    }
+}
 impl fmt::Display for Bitboard {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut s = String::with_capacity(72);

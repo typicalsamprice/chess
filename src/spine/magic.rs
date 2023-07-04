@@ -68,8 +68,8 @@ unsafe fn init_magics(is_rook: bool) {
     let mut epoch = [0; 4096];
 
     for s in (0..64).map(|sq_idx| Square::new(sq_idx)) {
-        edges = (Rank::One.to_bitboard() | Rank::Eight.to_bitboard()) &! s.rank().to_bitboard();
-        edges |= (File::A.to_bitboard() | File::H.to_bitboard()) &! s.file().to_bitboard();
+        edges = (Bitboard::from(Rank::One) | Bitboard::from(Rank::Eight)) &! Bitboard::from(s.rank());
+        edges |= (Bitboard::from(File::A) | Bitboard::from(File::H)) &! Bitboard::from(s.file());
 
         let ptr = if s == Square::A1 { 0 } else { magics[s.as_usize() - 1].ptr };
         let m = &mut magics[s.as_usize()];
@@ -141,10 +141,10 @@ fn sliding_attack(square: Square, is_rook: bool, occupied_squares: Bitboard) -> 
         [7, -7, 9, -9]
     };
 
-    let fa = File::A.to_bitboard();
-    let fh = File::H.to_bitboard();
-    let r1 = Rank::One.to_bitboard();
-    let r8 = Rank::Eight.to_bitboard();
+    let fa = Bitboard::from(File::A);
+    let fh = Bitboard::from(File::H);
+    let r1 = Bitboard::from(Rank::One);
+    let r8 = Bitboard::from(Rank::Eight);
 
     for shift in shift_amounts {
         let mut sb: Bitboard = square.into();

@@ -1,6 +1,7 @@
 #![allow(unused)]
-use super::{File, Rank};
+use super::{File, Rank, bitboard};
 use super::Bitboard;
+use super::Color;
 
 use std::fmt;
 
@@ -19,7 +20,7 @@ impl Square {
         Self(value)
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn build(file: File, rank: Rank) -> Self {
         let i = file.as_usize() + (rank.as_usize() << 3);
         Self(i as u8)
@@ -34,19 +35,23 @@ impl Square {
         self.0 as usize
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn file(self) -> File {
         debug_assert!(self.is_ok());
         unsafe { std::mem::transmute(self.0 & 7) }
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn rank(self) -> Rank {
         debug_assert!(self.is_ok());
         unsafe { std::mem::transmute(self.0 >> 3) }
     }
 
-    #[inline]
+    #[inline(always)]
+    pub const fn relative_to(self, color: Color) -> Self {
+        Self(self.0 ^ (color.as_usize() as u8 * 56))
+    }
+
     pub const fn offset(self, os: i32) -> Option<Self> {
         let res = self.as_u8() as i32 + os;
         if res < 0 || res >= Self::COUNT as i32 {
@@ -61,15 +66,19 @@ impl Square {
         self.0 < Self::COUNT as u8
     }
 
-    pub fn is_in_line(self, other: Self) -> bool {
-        if self.rank() == other.rank() || self.file() == other.file() {
-            return true;
+    pub fn in_line(self, other: Self) -> bool {
+        if !(self.is_ok() && other.is_ok()) {
+            return false;
         }
-
-        let diff = self.as_u8().abs_diff(other.as_u8());
-        diff % 7 == 0 || diff % 9 == 0
+        bitboard::line(self, other).gtz()
     }
 
+    #[inline(always)]
+    pub fn in_line2(self, other: Self, other2: Self) -> bool {
+        bitboard::line(self, other) & other2 == other2.into()
+    }
+
+    #[inline(always)]
     pub fn distance(self, other: Self) -> i32 {
         unsafe { SQUARE_DIST[self.as_usize()][other.as_usize()] }
     }
@@ -146,12 +155,6 @@ impl Square {
     pub const F8: Self = Self(61);
     pub const G8: Self = Self(62);
     pub const H8: Self = Self(63);
-}
-
-impl Into<Bitboard> for Square {
-    fn into(self) -> Bitboard {
-        self.to_bitboard()
-    }
 }
 
 impl fmt::Display for Square {

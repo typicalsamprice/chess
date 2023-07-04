@@ -1,4 +1,3 @@
-use crate::spine::Bitboard;
 use crate::spine::Color;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -14,21 +13,10 @@ impl Rank {
     }
 
     #[inline(always)]
-    pub const fn to_bitboard(self) -> Bitboard {
-        Bitboard::new(0xFFu64 << (self.as_usize() * 8))
-    }
-    
-    #[inline(always)]
     pub const fn relative_to(self, color: Color) -> Self {
         match color {
             Color::White => self,
             Color::Black => unsafe { std::mem::transmute(7 - self.as_usize() as u8) }
         }
-    }
-}
-
-impl Into<Bitboard> for Rank {
-    fn into(self) -> Bitboard {
-        self.to_bitboard()
     }
 }
