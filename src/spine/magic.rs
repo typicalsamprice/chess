@@ -3,7 +3,7 @@ use super::{File, Rank};
 
 use super::prng::PRNG;
 
-use crate::macros::pext;
+use crate::macros::pext_u64;
 
 #[derive(Debug, Clone, Copy)]
 struct Magic {
@@ -30,7 +30,7 @@ impl Magic {
 
     pub fn offset(&self, occupied: Bitboard) -> usize {
         #[cfg(feature = "pext")] 
-        return pext!(occupied.as_u64(), self.mask.as_u64());
+        return pext_u64!(occupied.as_u64(), self.mask.as_u64());
 
         let masked = occupied & self.mask;
         let v = masked * self.magic;
@@ -85,7 +85,7 @@ unsafe fn init_magics(is_rook: bool) {
             atts[size] = sliding_attack(s, is_rook, b);
 
             if cfg!(feature = "pext") {
-                table[m.ptr + pext!(b.as_u64(), m.mask.as_u64())] = atts[size];
+                table[m.ptr + pext_u64!(b.as_u64(), m.mask.as_u64())] = atts[size];
             }
 
             size += 1;
