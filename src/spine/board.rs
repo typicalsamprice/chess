@@ -407,6 +407,18 @@ impl Board {
         self.to_move = them;
     }
 
+    pub fn apply_moves(&mut self, s: &mut State, moves: &[Move]) -> Result<(), Move> {
+        for &m in moves.iter() {
+            if !self.is_legal(s, m) {
+                return Err(m);
+            }
+
+            self.do_move(s, m);
+        }
+
+        Ok(())
+    }
+
     pub fn undo_move(&mut self, s: &mut State, mv: Move) {
         self.to_move = !self.to_move;
         let us = self.to_move;
@@ -670,7 +682,7 @@ impl State {
     #[inline(always)]
     pub const fn pinners(&self, color: Color) -> Bitboard { self.pinners[color.as_usize()] }
 
-    pub unsafe fn make_own_child(self) -> Self {
+    unsafe fn make_own_child(self) -> Self {
         let mut s = self; // Copy!
         // Make a heap-allocated State variable
         let leaked_state: &'static mut Self = Box::leak(Box::new(self));
@@ -678,7 +690,8 @@ impl State {
         s.prev = Some(nn_ptr);
         s
     }
-    pub unsafe fn collapse(self) -> Option<Box<Self>> {
+    unsafe fn collapse(self) -> Option<Box<Self>> {
+        // We use a Box<> here to not leak memory, I think?
         self.prev.map(|p| Box::from_raw(p.as_ptr()))
     }
 }

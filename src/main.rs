@@ -2,6 +2,7 @@ mod spine;
 mod macros;
 
 use spine::*;
+use macros::move_new;
 
 fn main() {
     bitboard::initialize_bitboards();
@@ -10,8 +11,14 @@ fn main() {
     let start_pos = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
     let mut state = State::new();
-    let mut _b = Board::new(start_pos, &mut state).unwrap();
+    let mut b = Board::new(start_pos, &mut state).unwrap();
 
-    let u = perft::perft(2);
+    let d = 3;
+    let moves: Vec<Move> = vec![];
+    let moves = vec![
+        move_new!(Square::H2, Square::H4),
+        move_new!(Square::G7, Square::G5)];
+    b.apply_moves(&mut state, &moves).unwrap();
+    let u = perft::perft_on(&mut b, &mut state, d - moves.len());
     println!("Nodes: {u}");
 }

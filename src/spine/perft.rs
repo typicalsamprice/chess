@@ -9,6 +9,11 @@ pub fn perft(depth: usize) -> usize {
     perft__::<true>(&mut board, &mut state, depth)
 }
 
+pub fn perft_on(board: &mut Board, state: &mut State, depth: usize) -> usize {
+    assert!(depth > 0);
+    perft__::<true>(board, state, depth)
+}
+
 fn perft__<const root: bool>(board: &mut Board, state: &mut State, depth: usize) -> usize {
     let mut nodes = 0;
     let mut cur: usize;
@@ -17,7 +22,7 @@ fn perft__<const root: bool>(board: &mut Board, state: &mut State, depth: usize)
     let moves = movegen::generate_legal(board, state);
 
     for m in moves {
-        if root && depth == 1 {
+        if root && depth <= 1 {
             cur = 1;
             nodes += 1;
         } else {
@@ -30,7 +35,7 @@ fn perft__<const root: bool>(board: &mut Board, state: &mut State, depth: usize)
             board.undo_move(state, m);
         }
 
-        if root {
+        if root && !cfg!(test) {
             println!("{}{}: {cur}", m.from_square(), m.to_square());
         }
     }
@@ -42,9 +47,11 @@ fn perft__<const root: bool>(board: &mut Board, state: &mut State, depth: usize)
 #[cfg(test)]
 mod tests {
     use super::perft;
+    use crate::bitboard::initialize_bitboards as init;
 
     #[test]
     fn low_depth() {
+        init();
         assert_eq!(20, perft(1));
         assert_eq!(400, perft(2));
         assert_eq!(8902, perft(3));

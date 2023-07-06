@@ -130,6 +130,7 @@ unsafe fn init_magics(is_rook: bool) {
 
     for m in magics {
         m.attacks = &table[m.ptr..m.ptr + m.width];
+        assert!(m.attacks.len() > 0);
     }
 
     // TODO
@@ -179,7 +180,5 @@ pub fn magic_lookup(is_rook: bool, square: Square, occupied: Bitboard) -> Bitboa
     let m = magics[square.as_usize()];
 
     let i = m.offset(occupied);
-    let u = (m.mask & occupied).as_u64();
-    println!("{u}");
     m.attacks[i]
 }

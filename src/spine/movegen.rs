@@ -109,6 +109,7 @@ fn generate_pawn_moves_for(board: &Board, state: &State, color: Color, caps: boo
     let mut ml = MoveList::new();
 
     let lrank: Bitboard = Rank::Seven.relative_to(color).into();
+    let trank: Bitboard = Rank::Three.relative_to(color).into();
 
     let a = board.all();
     let enemy = board.color(!color);
@@ -121,16 +122,15 @@ fn generate_pawn_moves_for(board: &Board, state: &State, color: Color, caps: boo
     let bw = Backward(color);
 
     let oner = (other_pawns << fw) &! a;
-    let twor = (oner << fw) &! a;
+    let twor = ((oner & trank) << fw) &! a;
 
     for x in oner.into_iter() {
-        let m = Move::new(x + bw, x, MoveFlag::Normal, PieceType::Pawn);
-        debug_assert!(m.from_square().is_ok());
+        let m = move_new!(x + bw, x);
         ml.push(m);
     }
 
     for x in twor.into_iter() {
-        let m = Move::new(x + bw + bw, x, MoveFlag::Normal, PieceType::Pawn);
+        let m = move_new!(x + bw + bw, x);
         ml.push(m);
     }
 
@@ -213,7 +213,7 @@ fn generate_king_moves(board: &Board, state: &State, color: Color, caps: bool) -
         ml.push(move_new!(ks, x));
     }
 
-    if state.checkers().gtz() || caps {
+    if state.checkers().gtz() {
         return ml;
     }
 
@@ -257,7 +257,7 @@ fn generate_piece_moves_for(
             _ => unreachable!(),
         } &! board.color(color);
 
-        if caps {
+        if gt == GenType::Captures {
             atts &= board.color(!color);
         } else if gt == GenType::Evasions {
             atts &= bitboard::between::<true>(board.king(color), state.checkers().lsb());
@@ -296,8 +296,8 @@ pub fn generate_legal(board: &Board, state: &State) -> MoveList {
     } else {
         GenType::All
     };
-    let mut ml = generate_pawn_moves_for(board, state, color, false, gt);
-    let _ = ml.extend(generate_piece_moves(board, state, color, false, gt));
+    let mut ml = generate_pawn_moves_for(board, state, color, true, gt);
+    let _ = ml.extend(generate_piece_moves(board, state, color, true, gt));
 
     ml
 }
