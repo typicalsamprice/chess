@@ -41,10 +41,10 @@ pub fn knight_attacks(square: Square) -> Bitboard {
 pub fn knight_attacks_by_board(knights: Bitboard) -> Bitboard {
     let mut rv = Bitboard::ZERO;
 
-    rv |= ((knights << 15) | (knights >> 17)) & !Bitboard::from(File::A);
-    rv |= ((knights >> 15) | (knights << 17)) & !Bitboard::from(File::H);
+    rv |= ((knights >> 15) | (knights << 17)) & !Bitboard::from(File::A);
+    rv |= ((knights << 15) | (knights >> 17)) & !Bitboard::from(File::H);
     rv |= ((knights << 10) | (knights >> 6)) &! (Bitboard::from(File::A) | Bitboard::from(File::B));
-    rv |= ((knights >> 10) | (knights >> 6)) &! (Bitboard::from(File::G) | Bitboard::from(File::H));
+    rv |= ((knights >> 10) | (knights << 6)) &! (Bitboard::from(File::G) | Bitboard::from(File::H));
 
     rv
 }

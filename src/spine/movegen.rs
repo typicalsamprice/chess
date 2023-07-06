@@ -18,7 +18,7 @@ pub struct MoveList {
     len: usize
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum GenType {
     All,
     Captures,
@@ -174,6 +174,10 @@ fn generate_pawn_moves_for(board: &Board, state: &State, color: Color, caps: boo
             make_promotions(&mut ml, p, up);
         }
 
+        if !caps {
+            continue;
+        }
+
         if let Some(upl) = upl {
             if (enemy & upl).gtz() {
                 make_promotions(&mut ml, p, upl);
@@ -197,7 +201,7 @@ fn generate_king_moves(board: &Board, state: &State, color: Color, caps: bool) -
     let enemies = board.color(!color);
     let all_minus_ks = board.all() ^ ks;
 
-    let mut evasions = piece_attacks::king_attacks(ks);
+    let mut evasions = piece_attacks::king_attacks(ks) &! board.color(color);
     if caps {
         evasions &= enemies;
     }
@@ -245,13 +249,19 @@ fn generate_piece_moves_for(
     let pcs = board.spec(color, pt);
     let all = board.all();
     for p in pcs {
-        let atts = match pt {
+        let mut atts = match pt {
             PieceType::Knight => piece_attacks::knight_attacks(p),
             PieceType::Bishop => piece_attacks::bishop_attacks(p, all),
             PieceType::Rook => piece_attacks::rook_attacks(p, all),
             PieceType::Queen => piece_attacks::queen_attacks(p, all),
             _ => unreachable!(),
         } &! board.color(color);
+
+        if caps {
+            atts &= board.color(!color);
+        } else if gt == GenType::Evasions {
+            atts &= bitboard::between::<true>(board.king(color), state.checkers().lsb());
+        }
 
         for t in atts {
             ml.push(move_new!(p, t));
@@ -266,15 +276,28 @@ fn generate_piece_moves(board: &Board, state: &State, color: Color, caps: bool, 
 
     let pts = [PieceType::Knight, PieceType::Bishop, PieceType::Rook, PieceType::Queen];
 
-    ml.extend(generate_king_moves(board, state, color, caps));
+    let _ = ml.extend(generate_king_moves(board, state, color, caps));
 
-    if gt == GenType::Evasions {
+    if state.checkers().more_than_one() {
         return ml;
     }
 
     for &pt in pts.iter() {
-        ml.extend(generate_piece_moves_for(board, state, color, caps, gt, pt));
+        let _ = ml.extend(generate_piece_moves_for(board, state, color, caps, gt, pt));
     }
 
     ml 
+}
+
+pub fn generate_legal(board: &Board, state: &State) -> MoveList {
+    let color = board.to_move();
+    let gt = if state.checkers().gtz() {
+        GenType::Evasions
+    } else {
+        GenType::All
+    };
+    let mut ml = generate_pawn_moves_for(board, state, color, false, gt);
+    let _ = ml.extend(generate_piece_moves(board, state, color, false, gt));
+
+    ml
 }

@@ -31,6 +31,7 @@ pub fn line(a: Square, b: Square) -> Bitboard {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Bitboard(u64);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShiftDir {
     Forward(Color),
     Backward(Color)
@@ -124,7 +125,7 @@ impl Bitboard {
 
     #[inline(always)]
     pub const fn more_than_one(self) -> bool {
-        self.0 & (self.0 - 1) > 0
+        self.0 & (self.0.wrapping_sub(1)) > 0
     }
 
     #[inline(always)]

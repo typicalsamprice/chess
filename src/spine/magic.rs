@@ -23,15 +23,18 @@ impl Magic {
             mask: Bitboard::ZERO,
             shift: 0,
             attacks: &[],
-            width: 0, // Such that attacks.len() == width
+            width: 0,
             ptr: 0
         }
     }
 
+    #[cfg(feature = "pext")]
     pub fn offset(&self, occupied: Bitboard) -> usize {
-        #[cfg(feature = "pext")] 
-        return pext_u64!(occupied.as_u64(), self.mask.as_u64());
+        pext_u64(occupied.as_u64(), self.mask.as_u64()) as usize
+    }
 
+    #[cfg(not(feature = "pext"))] 
+    pub fn offset(&self, occupied: Bitboard) -> usize {
         let masked = occupied & self.mask;
         let v = masked * self.magic;
         v.as_u64() as usize >> self.shift
@@ -85,7 +88,7 @@ unsafe fn init_magics(is_rook: bool) {
             atts[size] = sliding_attack(s, is_rook, b);
 
             if cfg!(feature = "pext") {
-                table[m.ptr + pext_u64!(b.as_u64(), m.mask.as_u64())] = atts[size];
+                table[m.ptr + pext_u64(b.as_u64(), m.mask.as_u64()) as usize] = atts[size];
             }
 
             size += 1;
@@ -129,7 +132,7 @@ unsafe fn init_magics(is_rook: bool) {
         m.attacks = &table[m.ptr..m.ptr + m.width];
     }
 
-    // TODO 
+    // TODO
 }
 
 fn sliding_attack(square: Square, is_rook: bool, occupied_squares: Bitboard) -> Bitboard {
@@ -175,5 +178,8 @@ pub fn magic_lookup(is_rook: bool, square: Square, occupied: Bitboard) -> Bitboa
     let magics = unsafe { if is_rook { ROOK_MAGICS } else { BISHOP_MAGICS } };
     let m = magics[square.as_usize()];
 
-    m.attacks[m.offset(occupied)]
+    let i = m.offset(occupied);
+    let u = (m.mask & occupied).as_u64();
+    println!("{u}");
+    m.attacks[i]
 }

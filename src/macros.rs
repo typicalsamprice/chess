@@ -1,15 +1,5 @@
 #[cfg(feature = "pext")]
-use bitintr;
-
-macro_rules! pext_u64 {
-    ($a:expr, $b:expr) => {
-        if cfg!(feature = "pext") {
-            bitintr::Pext($a, $b)
-        } else {
-            0
-        }
-    }
-}
+use bitintr::Pext;
 
 macro_rules! move_new {
     ($from:expr, $to:expr) => {
@@ -23,6 +13,14 @@ macro_rules! move_new {
     };
 }
 
+#[cfg(feature = "pext")]
+pub(crate) fn pext_u64(a: u64, b: u64) -> u64 {
+    a.pext(b)
+}
 
-pub(crate) use pext_u64;
+#[cfg(not(feature = "pext"))]
+pub(crate) fn pext_u64(_: u64, _: u64) -> u64 {
+    0
+}
+
 pub(crate) use move_new;

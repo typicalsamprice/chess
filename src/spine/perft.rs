@@ -14,7 +14,7 @@ fn perft__<const root: bool>(board: &mut Board, state: &mut State, depth: usize)
     let mut cur: usize;
     let leaf = depth == 2;
     
-    let moves = movegen::generate_all(board, state);
+    let moves = movegen::generate_legal(board, state);
 
     for m in moves {
         if root && depth == 1 {
@@ -24,7 +24,7 @@ fn perft__<const root: bool>(board: &mut Board, state: &mut State, depth: usize)
             board.do_move(state, m);
             cur = if leaf {
                 // FIXME: Don't realloc, just alter `moves` in-place?
-                movegen::generate_all(board, state).len()
+                movegen::generate_legal(board, state).len()
             } else { perft__::<false>(board, state, depth - 1) };
             nodes += cur;
             board.undo_move(state, m);
@@ -37,4 +37,18 @@ fn perft__<const root: bool>(board: &mut Board, state: &mut State, depth: usize)
 
 
     nodes
+}
+
+#[cfg(test)]
+mod tests {
+    use super::perft;
+
+    #[test]
+    fn low_depth() {
+        assert_eq!(20, perft(1));
+        assert_eq!(400, perft(2));
+        assert_eq!(8902, perft(3));
+        assert_eq!(197_281, perft(4));
+        assert_eq!(4_865_609, perft(5));
+    }
 }
