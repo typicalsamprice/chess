@@ -119,6 +119,10 @@ fn generate_pawn_moves_for(board: &Board, state: &State, color: Color, caps: boo
         ml.push(m);
     }
 
+    for x in twor.into_iter() {
+        let m = Move::new(x + bw + bw, x, MoveFlag::Normal, )
+    }
+
     ml
 }
 
