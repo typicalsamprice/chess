@@ -1,11 +1,11 @@
 #![allow(unused)]
 use super::{File, Rank, bitboard};
-use super::Bitboard;
+use super::{Bitboard, Forward, Backward};
 use super::Color;
 
 use std::fmt;
 
-use super::bitboard::SQUARE_DIST;
+use super::bitboard::{SQUARE_DIST, ShiftDir};
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -86,6 +86,17 @@ impl Square {
     #[inline(always)]
     pub const fn to_bitboard(self) -> Bitboard {
         Bitboard::new(1 << self.0)
+    }
+}
+
+impl std::ops::Add<ShiftDir> for Square {
+    type Output = Self;
+    fn add(self, rhs: ShiftDir) -> Self::Output {
+        let offset = match rhs {
+            Forward(Color::White) | Backward(Color::Black) => 8,
+            Backward(Color::White) | Forward(Color::Black) => -8,
+        };
+        self.offset(offset).unwrap_or(Self(Self::COUNT as u8)) // This is unsafe!
     }
 }
 

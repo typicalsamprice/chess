@@ -1,7 +1,7 @@
 use crate::spine::Square;
 use crate::spine::PieceType;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Move(u16);
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum MoveFlag {
@@ -14,7 +14,7 @@ pub enum MoveFlag {
 impl Move {
     pub const NULL: Self = Self(0);
     
-   pub const fn new(from: Square, to: Square,
+    pub const fn new(from: Square, to: Square,
                      flag: MoveFlag, promotion_type: PieceType) -> Self {
         let frombits = from.as_u8() as u16; 
         let tobits = (to.as_u8() as u16) << 6; 
@@ -63,10 +63,8 @@ impl Move {
             return false;
         }
 
-        if prom == PieceType::Pawn || prom == PieceType::King {
-            if fl != MoveFlag::Promotion {
-                return false;
-            }
+        if fl == MoveFlag::Promotion && (prom == PieceType::King || prom == PieceType::Pawn) {
+            return false;
         }
 
         true

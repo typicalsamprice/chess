@@ -31,6 +31,11 @@ pub fn line(a: Square, b: Square) -> Bitboard {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Bitboard(u64);
 
+pub enum ShiftDir {
+    Forward(Color),
+    Backward(Color)
+}
+
 pub(crate) fn initialize_bitboards() {
     for i in 0..64 {
         for j in 0..64 {
@@ -226,6 +231,26 @@ impl<T> ops::Shr<T> for Bitboard
     type Output = Self;
     fn shr(self, shift: T) -> Self {
         Self(self.0.shr(shift))
+    }
+}
+
+impl ops::Shl<ShiftDir> for Bitboard {
+    type Output = Self;
+    fn shl(self, rhs: ShiftDir) -> Self {
+        match rhs {
+            ShiftDir::Forward(Color::White) => {
+                self << 8
+            },
+            ShiftDir::Forward(Color::Black) => {
+                self >> 8
+            },
+            ShiftDir::Backward(Color::White) => {
+                self >> 8
+            },
+            ShiftDir::Backward(Color::Black) => {
+                self << 8
+            },
+        }
     }
 }
 

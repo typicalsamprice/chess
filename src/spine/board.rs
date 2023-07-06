@@ -48,6 +48,8 @@ pub struct State {
 }
 
 impl Board {
+    pub const STARTPOS: &'static str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
     #[inline(always)]
     pub const fn color(&self, color: Color) -> Bitboard {
         self.color_bb[color.as_usize()]
@@ -290,7 +292,19 @@ impl Board {
             let overlap = b & self.all();
             if overlap.popcount() == 1 {
                 let l = overlap.lsb();
-                let p = self.get_piece(l).expect("Piece not found, detected as blocker");
+                let p = self.get_piece(l).expect("compute-state: rook or queen not found but detected as blocker");
+                s.blockers[p.color().as_usize()] |= l;
+                if p.color() == us {
+                    s.pinners[them.as_usize()] |= pp;
+                }
+            }
+        }
+        for pp in bps {
+            let b = bitboard::between::<false>(king, pp);
+            let overlap = b & self.all();
+            if overlap.popcount() == 1 {
+                let l = overlap.lsb();
+                let p = self.get_piece(l).expect("compute-state: bishop or queen not found but detected as blocker");
                 s.blockers[p.color().as_usize()] |= l;
                 if p.color() == us {
                     s.pinners[them.as_usize()] |= pp;
@@ -329,9 +343,25 @@ impl Board {
         let cap = self.get_piece(t).map(|p| p.kind());
         let cap = if flag == MoveFlag::EnPassant { debug_assert!(cap.is_none()); Some(PieceType::Pawn) } else { cap };
 
+        let (short, long) = if us == Color::White { (CastleRights::W_OO, CastleRights::W_OOO) }
+            else { (CastleRights::B_OO, CastleRights::B_OOO) };
+
         if let Some(pc) = cap {
             let cap_square = if flag == MoveFlag::EnPassant { Square::build(t.file(), Rank::Five.relative_to(us)) } else { t };
             self.remove_piece(cap_square);
+
+            if pc == PieceType::Rook {
+                match t.relative_to(us) {
+                    Square::H8 => if s.castle_rights().has_exact_rights(short) {
+                        s.castle_rights.remove_right(short);
+                    },
+                    Square::A8 => if s.castle_rights().has_exact_rights(long) {
+                        s.castle_rights.remove_right(long);
+                    },
+                    _ => ()
+                }
+            }
+
             s.half_moves = 0;
         }
 
@@ -365,6 +395,10 @@ impl Board {
                 self.remove_piece(t);
                 self.add_piece(t, promp);
             }
+        }
+
+        if mov.kind() == PieceType::King {
+            let _ = [short, long].into_iter().map(|cr| s.castle_rights.remove_right(cr));
         }
 
         s.captured_piece = cap;
@@ -406,7 +440,7 @@ impl Board {
             }
         }
 
-        unsafe { *s = s.collapse().unwrap() };
+        unsafe { *s = *s.collapse().unwrap() };
         self.ply -= 1;
     }
 
@@ -445,14 +479,6 @@ impl Board {
 
         self.add_piece(kto, k);
         self.add_piece(rook_t, r);
-
-        if APPLY {
-            let crs_for_color = [CastleRights::W_OO, CastleRights::W_OOO];
-            let crs_for_color: Vec<u8> = crs_for_color.iter().map(|&cr| cr + (cr * 3 * us.as_usize() as u8)).collect();
-            for &cr in crs_for_color.iter() {
-                s.castle_rights.remove_right(cr);
-            }
-        }
     }
 
     pub fn new<S>(fen: S, state: &mut State) -> Result<Self, BoardCreationError>
@@ -645,14 +671,15 @@ impl State {
     pub const fn pinners(&self, color: Color) -> Bitboard { self.pinners[color.as_usize()] }
 
     pub unsafe fn make_own_child(self) -> Self {
-        let mut s = self;
+        let mut s = self; // Copy!
+        // Make a heap-allocated State variable
         let leaked_state: &'static mut Self = Box::leak(Box::new(self));
         let nn_ptr = NonNull::new_unchecked(leaked_state);
         s.prev = Some(nn_ptr);
         s
     }
-    pub unsafe fn collapse(self) -> Option<Self> {
-        self.prev.map(|par| *par.as_ptr())
+    pub unsafe fn collapse(self) -> Option<Box<Self>> {
+        self.prev.map(|p| Box::from_raw(p.as_ptr()))
     }
 }
 

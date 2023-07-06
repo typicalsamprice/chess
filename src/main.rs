@@ -14,6 +14,7 @@ fn main() {
     let m2 = Move::new(Square::E7, Square::E5, MoveFlag::Normal, PieceType::Pawn);
     b.do_move(&mut state, m);
     b.do_move(&mut state, m2);
+    b.undo_move(&mut state, m2);
+    b.undo_move(&mut state, m);
     println!("{b}");
-    println!("{:?}", state.checkers());
 }
