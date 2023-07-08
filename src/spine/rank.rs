@@ -1,4 +1,4 @@
-use crate::spine::Color;
+use crate::prelude::Color;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Rank {
@@ -7,16 +7,16 @@ pub enum Rank {
 }
 
 impl Rank {
-    #[inline(always)]
+    #[inline]
     pub const fn as_usize(self) -> usize {
         self as usize
     }
 
-    #[inline(always)]
+    #[inline]
     pub const fn relative_to(self, color: Color) -> Self {
         match color {
             Color::White => self,
-            Color::Black => unsafe { std::mem::transmute(7 - self.as_usize() as u8) }
+            Color::Black => unsafe { std::mem::transmute(7 - self as u8) }
         }
     }
 }

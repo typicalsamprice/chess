@@ -1,8 +1,6 @@
-use super::initialize_magics;
-use super::{Color, Square};
-use super::{File, Rank};
-use super::piece_attacks::*;
-use super::PieceType;
+use crate::prelude::*;
+use crate::piece_attacks::*;
+use crate::spine::magic::initialize_magics;
 
 use std::ops;
 use std::fmt;

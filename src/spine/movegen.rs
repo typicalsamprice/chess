@@ -1,16 +1,12 @@
-use super::board::CastleRights;
-use super::{Board, State, bitboard};
-use super::{Move, MoveFlag};
+use std::slice::Iter;
 
-use super::Square;
-use super::{Forward, Backward};
-
-use super::piece_attacks;
-
-use super::{Color, PieceType, Bitboard};
-use super::{File, Rank};
-
+use crate::prelude::*;
+use crate::bitboard;
+use crate::piece_attacks;
+use crate::spine::board::CastleRights;
 use crate::macros::move_new;
+
+use ShiftDir::*;
 
 #[derive(Debug)]
 pub struct MoveList {
@@ -84,20 +80,21 @@ impl MoveList {
 
         Ok(())
     }
-}
 
-impl Iterator for MoveList {
-    type Item = Move;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.len == 0 {
-            return None;
-        }
-
-        self.len -= 1;
-        let m = self.moves[self.len];
-        Some(m)
+    #[inline]
+    pub fn iter(&self) -> Iter<'_, Move> {
+        self.moves[0..self.len].iter()
     }
 }
+
+impl<'a> IntoIterator for &'a MoveList {
+    type IntoIter = Iter<'a, Move>;
+    type Item = &'a Move;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 
 fn make_promotions(ml: &mut MoveList, from: Square, to: Square) {
     for &pt in [PieceType::Knight, PieceType::Bishop,
@@ -261,6 +258,10 @@ fn generate_piece_moves_for(
             atts &= board.color(!color);
         } else if gt == GenType::Evasions {
             atts &= bitboard::between::<true>(board.king(color), state.checkers().lsb());
+        }
+
+        if !caps {
+            atts &= !board.color(!color);
         }
 
         for t in atts {

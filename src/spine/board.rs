@@ -1,11 +1,5 @@
-use super::Bitboard;
-use super::{Square, File, Rank};
-use super::{Move, MoveFlag};
-use super::{Piece, PieceType};
-use super::Color;
 use crate::bitboard;
-
-use std::pin::Pin;
+use crate::prelude::*;
 
 use std::fmt;
 use std::mem::transmute;
@@ -18,7 +12,7 @@ macro_rules! ret_false_if {
         if $cond {
             return false;
         }
-    }
+    };
 }
 
 #[derive(Debug)]
@@ -44,7 +38,7 @@ pub struct State {
     pinners: [Bitboard; Color::COUNT],
     captured_piece: Option<PieceType>,
 
-    prev: Option<NonNull<Self>>
+    prev: Option<NonNull<Self>>,
 }
 
 impl Board {
@@ -93,19 +87,25 @@ impl Board {
         self.spec(color, PieceType::King).lsb()
     }
 
-    pub fn attacks_to(&self, square: Square) -> Bitboard { self.attacks_to_bits(square, self.all()) }
+    pub fn attacks_to(&self, square: Square) -> Bitboard {
+        self.attacks_to_bits(square, self.all())
+    }
     pub fn attacks_to_bits(&self, square: Square, bits: Bitboard) -> Bitboard {
         let knights = piece_attacks::knight_attacks(square) & self.piece_type(PieceType::Knight);
-        let wpawns = piece_attacks::pawn_attacks(square, Color::White) & self.spec(Color::Black, PieceType::Pawn);
-        let bpawns = piece_attacks::pawn_attacks(square, Color::Black) & self.spec(Color::White, PieceType::Pawn);
-        let rooks = piece_attacks::rook_attacks(square, bits) & self.piece_type2(PieceType::Rook, PieceType::Queen);
-        let bishops = piece_attacks::bishop_attacks(square, bits) & self.piece_type2(PieceType::Bishop, PieceType::Queen);
+        let wpawns = piece_attacks::pawn_attacks(square, Color::White)
+            & self.spec(Color::Black, PieceType::Pawn);
+        let bpawns = piece_attacks::pawn_attacks(square, Color::Black)
+            & self.spec(Color::White, PieceType::Pawn);
+        let rooks = piece_attacks::rook_attacks(square, bits)
+            & self.piece_type2(PieceType::Rook, PieceType::Queen);
+        let bishops = piece_attacks::bishop_attacks(square, bits)
+            & self.piece_type2(PieceType::Bishop, PieceType::Queen);
         let kings = piece_attacks::king_attacks(square) & self.piece_type(PieceType::King);
 
         knights | wpawns | bpawns | rooks | bishops | kings
     }
 
-    pub fn is_legal(&self, s: &State, mv: Move) -> bool { 
+    pub fn is_legal(&self, s: &State, mv: Move) -> bool {
         ret_false_if!(!self.is_pseudo_legal(s, mv));
 
         let f = mv.from_square();
@@ -130,10 +130,11 @@ impl Board {
                     p = Some(pinner);
                     break;
                 }
-            };
+            }
 
-            ret_false_if!(!p.expect("Didn't find pinner for pinned piece")
-                            .in_line2(t, k));
+            ret_false_if!(!p
+                .expect("Didn't find pinner for pinned piece")
+                .in_line2(t, k));
         }
 
         if mv.flag() == MoveFlag::Castle {
@@ -145,13 +146,16 @@ impl Board {
         }
 
         if mv.flag() == MoveFlag::EnPassant {
-            ret_false_if!((self.attacks_to_bits(k, self.all() ^ s.en_passant().unwrap() ^ f ^ t)
-                           & self.color(!self.to_move())).gtz());
+            ret_false_if!(
+                (self.attacks_to_bits(k, self.all() ^ s.en_passant().unwrap() ^ f ^ t)
+                    & self.color(!self.to_move()))
+                .gtz()
+            );
         }
 
         true
     }
-    
+
     pub fn is_pseudo_legal(&self, s: &State, mv: Move) -> bool {
         let f = mv.from_square();
         let t = mv.to_square();
@@ -166,7 +170,9 @@ impl Board {
         let captured_piece = if let Some(cp) = self.get_piece(t) {
             ret_false_if!(cp.color() == us);
             Some(cp.kind())
-        } else { None };
+        } else {
+            None
+        };
 
         if mp.kind() == PieceType::Pawn {
             if mv.flag() == MoveFlag::EnPassant {
@@ -176,8 +182,10 @@ impl Board {
                 ret_false_if!(mp.kind() != PieceType::Pawn);
                 ret_false_if!(s.en_passant() != Some(t));
                 ret_false_if!(self.get_piece(t).is_some());
-                ret_false_if!(self.get_piece(Square::build(t.file(), f.rank()))
-                              != Some(PieceType::Pawn + them));
+                ret_false_if!(
+                    self.get_piece(Square::build(t.file(), f.rank()))
+                        != Some(PieceType::Pawn + them)
+                );
             }
 
             match f.distance(t) {
@@ -193,7 +201,7 @@ impl Board {
                     } else {
                         ret_false_if!(captured_piece.is_none());
                     }
-                },
+                }
                 2 => {
                     ret_false_if!(f.rank() != Rank::Two.relative_to(us));
                     ret_false_if!(f.file() != t.file());
@@ -201,11 +209,13 @@ impl Board {
                     let ibw_val = sum / 2;
                     let ibw = Square::new(ibw_val);
                     ret_false_if!(self.get_piece(ibw).is_some());
-                },
+                }
                 _ => return false,
             }
 
-            ret_false_if!(mv.flag() == MoveFlag::Promotion && t.rank() != Rank::Eight.relative_to(us));
+            ret_false_if!(
+                mv.flag() == MoveFlag::Promotion && t.rank() != Rank::Eight.relative_to(us)
+            );
             if t.rank() == Rank::Eight.relative_to(us) {
                 ret_false_if!(mv.flag() != MoveFlag::Promotion);
                 ret_false_if!(mv.promotion_type() == PieceType::Pawn);
@@ -239,27 +249,23 @@ impl Board {
                     let ibsq = Square::new(ibs);
                     ret_false_if!(self.get_piece(ibsq).is_some());
                     let (cr, rooksq) = match t.relative_to(us) {
-                        Square::G1 => {
-                            match us {
-                                Color::White => (CastleRights::W_OO, Square::H1),
-                                Color::Black => (CastleRights::B_OO, Square::H8),
-                            } 
+                        Square::G1 => match us {
+                            Color::White => (CastleRights::W_OO, Square::H1),
+                            Color::Black => (CastleRights::B_OO, Square::H8),
                         },
-                        Square::C1 => {
-                            match us {
-                                Color::White => (CastleRights::W_OOO, Square::A1),
-                                Color::Black => (CastleRights::B_OOO, Square::A8),
-                            } 
+                        Square::C1 => match us {
+                            Color::White => (CastleRights::W_OOO, Square::A1),
+                            Color::Black => (CastleRights::B_OOO, Square::A8),
                         },
                         _ => return false,
                     };
 
                     ret_false_if!(!s.castle_rights().has_exact_rights(cr));
                     ret_false_if!((self.all() & bitboard::between::<false>(f, rooksq)).gtz());
-                },
+                }
                 _ => return false,
             }
-        } 
+        }
 
         true
     }
@@ -292,7 +298,9 @@ impl Board {
             let overlap = b & self.all();
             if overlap.popcount() == 1 {
                 let l = overlap.lsb();
-                let p = self.get_piece(l).expect("compute-state: rook or queen not found but detected as blocker");
+                let p = self
+                    .get_piece(l)
+                    .expect("compute-state: rook or queen not found but detected as blocker");
                 s.blockers[p.color().as_usize()] |= l;
                 if p.color() == us {
                     s.pinners[them.as_usize()] |= pp;
@@ -304,7 +312,9 @@ impl Board {
             let overlap = b & self.all();
             if overlap.popcount() == 1 {
                 let l = overlap.lsb();
-                let p = self.get_piece(l).expect("compute-state: bishop or queen not found but detected as blocker");
+                let p = self
+                    .get_piece(l)
+                    .expect("compute-state: bishop or queen not found but detected as blocker");
                 s.blockers[p.color().as_usize()] |= l;
                 if p.color() == us {
                     s.pinners[them.as_usize()] |= pp;
@@ -314,9 +324,11 @@ impl Board {
 
         s.check_squares[PieceType::Pawn.as_usize()] = piece_attacks::pawn_attacks(king, us);
         s.check_squares[PieceType::Knight.as_usize()] = piece_attacks::knight_attacks(king);
-        s.check_squares[PieceType::Bishop.as_usize()] = piece_attacks::bishop_attacks(king, self.all());
+        s.check_squares[PieceType::Bishop.as_usize()] =
+            piece_attacks::bishop_attacks(king, self.all());
         s.check_squares[PieceType::Rook.as_usize()] = piece_attacks::rook_attacks(king, self.all());
-        s.check_squares[PieceType::Queen.as_usize()] = s.check_squares[PieceType::Bishop.as_usize()]
+        s.check_squares[PieceType::Queen.as_usize()] = s.check_squares
+            [PieceType::Bishop.as_usize()]
             | s.check_squares[PieceType::Rook.as_usize()];
     }
 
@@ -325,7 +337,9 @@ impl Board {
             return;
         }
 
-        unsafe { *s = s.make_own_child(); }
+        unsafe {
+            *s = s.make_own_child();
+        }
 
         self.ply += 1;
         s.half_moves += 1;
@@ -338,27 +352,45 @@ impl Board {
         let us = self.to_move();
         let them = !us;
 
-        let mov = self.get_piece(f).expect("Somehow tried to move nonexistent piece");
+        let mov = self
+            .get_piece(f)
+            .expect("Somehow tried to move nonexistent piece");
 
         let cap = self.get_piece(t).map(|p| p.kind());
-        let cap = if flag == MoveFlag::EnPassant { debug_assert!(cap.is_none()); Some(PieceType::Pawn) } else { cap };
+        let cap = if flag == MoveFlag::EnPassant {
+            debug_assert!(cap.is_none());
+            Some(PieceType::Pawn)
+        } else {
+            cap
+        };
 
-        let (short, long) = if us == Color::White { (CastleRights::W_OO, CastleRights::W_OOO) }
-            else { (CastleRights::B_OO, CastleRights::B_OOO) };
+        let (short, long) = if us == Color::White {
+            (CastleRights::W_OO, CastleRights::W_OOO)
+        } else {
+            (CastleRights::B_OO, CastleRights::B_OOO)
+        };
 
         if let Some(pc) = cap {
-            let cap_square = if flag == MoveFlag::EnPassant { Square::build(t.file(), Rank::Five.relative_to(us)) } else { t };
+            let cap_square = if flag == MoveFlag::EnPassant {
+                Square::build(t.file(), Rank::Five.relative_to(us))
+            } else {
+                t
+            };
             self.remove_piece(cap_square);
 
             if pc == PieceType::Rook {
                 match t.relative_to(us) {
-                    Square::H8 => if s.castle_rights().has_exact_rights(short) {
-                        s.castle_rights.remove_right(short);
-                    },
-                    Square::A8 => if s.castle_rights().has_exact_rights(long) {
-                        s.castle_rights.remove_right(long);
-                    },
-                    _ => ()
+                    Square::H8 => {
+                        if s.castle_rights().has_exact_rights(short) {
+                            s.castle_rights.remove_right(short);
+                        }
+                    }
+                    Square::A8 => {
+                        if s.castle_rights().has_exact_rights(long) {
+                            s.castle_rights.remove_right(long);
+                        }
+                    }
+                    _ => (),
                 }
             }
 
@@ -384,9 +416,10 @@ impl Board {
             s.half_moves = 0;
 
             let pep = Square::build(f.file(), Rank::Three.relative_to(us));
-            if f.distance(t) == 2 &&
-                (piece_attacks::pawn_attacks_by_board(Bitboard::from(pep), us)
-                 & self.spec(!us, PieceType::Pawn)).gtz()
+            if f.distance(t) == 2
+                && (piece_attacks::pawn_attacks_by_board(Bitboard::from(pep), us)
+                    & self.spec(!us, PieceType::Pawn))
+                .gtz()
             {
                 s.en_passant = Some(pep);
             } else if flag == MoveFlag::Promotion {
@@ -398,7 +431,9 @@ impl Board {
         }
 
         if mov.kind() == PieceType::King {
-            let _ = [short, long].into_iter().map(|cr| s.castle_rights.remove_right(cr));
+            let _ = [short, long]
+                .into_iter()
+                .map(|cr| s.castle_rights.remove_right(cr));
         }
 
         s.captured_piece = cap;
@@ -427,7 +462,9 @@ impl Board {
         let t = mv.to_square();
         let flag = mv.flag();
 
-        let mov = self.get_piece(t).expect("undo-move: could not find moved piece");
+        let mov = self
+            .get_piece(t)
+            .expect("undo-move: could not find moved piece");
         debug_assert!(self.get_piece(f).is_none());
         debug_assert!(s.captured_piece != Some(PieceType::King));
 
@@ -447,7 +484,9 @@ impl Board {
                 let csq = if flag == MoveFlag::EnPassant {
                     debug_assert!(f.rank() == Rank::Six.relative_to(us));
                     Square::build(t.file(), f.rank())
-                } else { t };
+                } else {
+                    t
+                };
                 self.add_piece(csq, pt + !us);
             }
         }
@@ -475,8 +514,16 @@ impl Board {
     fn do_castle<const APPLY: bool>(&mut self, s: &mut State, us: Color, from: Square, to: Square) {
         let is_ks = from < to;
 
-        let rfrom = if is_ks { Square::H1.relative_to(us) } else { Square::A1.relative_to(us) };
-        let rto = if is_ks { Square::F1.relative_to(us) } else { Square::D1.relative_to(us) };
+        let rfrom = if is_ks {
+            Square::H1.relative_to(us)
+        } else {
+            Square::A1.relative_to(us)
+        };
+        let rto = if is_ks {
+            Square::F1.relative_to(us)
+        } else {
+            Square::D1.relative_to(us)
+        };
 
         let rook_r = if APPLY { rfrom } else { rto };
         let rook_t = if APPLY { rto } else { rfrom };
@@ -485,7 +532,9 @@ impl Board {
         let kto = if APPLY { to } else { from };
 
         let k = self.remove_piece(kfr).expect("No King Found in do_castle");
-        let r = self.remove_piece(rook_r).expect("No Rook Found in do_castle");
+        let r = self
+            .remove_piece(rook_r)
+            .expect("No Rook Found in do_castle");
         debug_assert!(k.kind() == PieceType::King);
         debug_assert!(r.kind() == PieceType::Rook);
 
@@ -493,8 +542,11 @@ impl Board {
         self.add_piece(rook_t, r);
     }
 
+    /// Create a new [`Board`] and set up a proper [`State`] for
+    /// the board given some [FEN](https://en.wikipedia.org/wiki/Forsyth-Edwards_Notation)
     pub fn new<S>(fen: S, state: &mut State) -> Result<Self, BoardCreationError>
-        where S: Into<String>
+    where
+        S: Into<String>,
     {
         let mut b = Self {
             color_bb: [Bitboard::ZERO; Color::COUNT],
@@ -502,7 +554,7 @@ impl Board {
             pieces: [None; Square::COUNT],
             piece_count: [0; PieceType::COUNT * Color::COUNT],
             to_move: Color::White,
-            ply: 0
+            ply: 0,
         };
 
         let fen: String = fen.into();
@@ -515,7 +567,9 @@ impl Board {
         let mut ri = 7;
         let mut fi = 0;
         for c in chars.by_ref() {
-            if c == ' ' { break; }
+            if c == ' ' {
+                break;
+            }
             if c == '/' {
                 ri -= 1;
                 fi = 0;
@@ -530,14 +584,14 @@ impl Board {
             if fi >= 8 || ri < 0 {
                 return Err(BoardCreationError::BoardOverflow);
             }
-            let f: File = unsafe { transmute(fi as u8) };
+            let f: File = unsafe { transmute(fi) };
             let r: Rank = unsafe { transmute(ri as u8) };
 
             let s = Square::build(f, r);
 
             let color = match c {
                 'A'..='Z' => Color::White,
-                _ => Color::Black
+                _ => Color::Black,
             };
             let pt = match c.to_ascii_lowercase() {
                 'p' => PieceType::Pawn,
@@ -546,7 +600,7 @@ impl Board {
                 'r' => PieceType::Rook,
                 'q' => PieceType::Queen,
                 'k' => PieceType::King,
-                _ => return Err(BoardCreationError::InvalidPiece)
+                _ => return Err(BoardCreationError::InvalidPiece),
             };
 
             let p = pt + color;
@@ -576,19 +630,28 @@ impl Board {
         }
 
         for c in chars.by_ref() {
-            if c == ' ' { break; }
+            if c == ' ' {
+                break;
+            }
             if c == '-' {
-                if state.castle_rights.has_any_rights(CastleRights::WHITE | CastleRights::BLACK) {
+                if state
+                    .castle_rights
+                    .has_any_rights(CastleRights::WHITE | CastleRights::BLACK)
+                {
                     return Err(BoardCreationError::InvalidCastleRights);
                 }
                 break;
             }
 
-            state.castle_rights.add_right(c.try_into().map_err(|_| BoardCreationError::InvalidCastleRights)?);
+            state.castle_rights.add_right(
+                c.try_into()
+                    .map_err(|_| BoardCreationError::InvalidCastleRights)?,
+            );
         }
 
         if state.castle_rights() == CastleRights(0) {
-            if let Some(c) = chars.next() { // Consume the next char
+            if let Some(c) = chars.next() {
+                // Consume the next char
                 if c != ' ' {
                     return Err(BoardCreationError::InvalidEnPassant);
                 }
@@ -613,10 +676,14 @@ impl Board {
             } else {
                 return Err(BoardCreationError::InvalidEnPassant);
             }
-        } else { return Err(BoardCreationError::InvalidEnPassant); }
+        } else {
+            return Err(BoardCreationError::InvalidEnPassant);
+        }
 
         if let Some(c) = chars.next() {
-            if c != ' ' { return Err(BoardCreationError::InvalidNumber); }
+            if c != ' ' {
+                return Err(BoardCreationError::InvalidNumber);
+            }
             let left_chars = chars.collect::<Vec<char>>();
             let two_nums = left_chars.split(|&c| c == ' ').collect::<Vec<&[char]>>();
             let fnum = two_nums[0];
@@ -645,8 +712,9 @@ impl Board {
 }
 
 impl State {
+    /// Create a new blank [`State`] with no parent
     pub const fn new() -> Self {
-        let mut s = Self {
+        Self {
             castle_rights: CastleRights::new(0),
             en_passant: None,
             half_moves: 0,
@@ -658,33 +726,46 @@ impl State {
             pinners: [Bitboard::ZERO; Color::COUNT],
             captured_piece: None,
             prev: None,
-        };
-        s
+        }
     }
 
-    #[inline(always)]
+    #[inline]
+    /// Get the current castling permissions in the form of a [`CastleRights`]
     pub const fn castle_rights(&self) -> CastleRights {
         self.castle_rights
     }
-    #[inline(always)]
+    #[inline]
+    /// Get the current en passant square (the one that the capture takes place on)
     pub const fn en_passant(&self) -> Option<Square> {
         self.en_passant
     }
-    #[inline(always)]
+    #[inline]
+    /// Get the current count of plies from null (null being the start)
     pub const fn plies_from_null(&self) -> usize {
         self.plies_from_null
     }
 
-    #[inline(always)]
-    pub const fn checkers(&self) -> Bitboard { self.checkers }
-    #[inline(always)]
-    pub const fn blockers(&self, color: Color) -> Bitboard { self.blockers[color.as_usize()] }
-    #[inline(always)]
-    pub const fn pinners(&self, color: Color) -> Bitboard { self.pinners[color.as_usize()] }
+    #[inline]
+    /// Get the [`Bitboard`] of the pieces delivering check currently
+    pub const fn checkers(&self) -> Bitboard {
+        self.checkers
+    }
+
+    #[inline]
+    /// Get the [`Bitboard`] of the pieces being pinned to their own king
+    pub const fn blockers(&self, color: Color) -> Bitboard {
+        self.blockers[color.as_usize()]
+    }
+
+    #[inline]
+    /// Get the [`Bitboard`] of the pieces of [`Color`] pinning against the opposite king
+    pub const fn pinners(&self, color: Color) -> Bitboard {
+        self.pinners[color.as_usize()]
+    }
 
     unsafe fn make_own_child(self) -> Self {
         let mut s = self; // Copy!
-        // Make a heap-allocated State variable
+                          // Make a heap-allocated State variable
         let leaked_state: &'static mut Self = Box::leak(Box::new(self));
         let nn_ptr = NonNull::new_unchecked(leaked_state);
         s.prev = Some(nn_ptr);
@@ -692,12 +773,14 @@ impl State {
     }
     unsafe fn collapse(self) -> Option<Box<Self>> {
         // We use a Box<> here to not leak memory, I think?
+        // TODO: Use miri?
         self.prev.map(|p| Box::from_raw(p.as_ptr()))
     }
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A wrapper around a bitfield that denotes
+/// certain castling privileges
 pub struct CastleRights(u8);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -708,40 +791,53 @@ pub enum BoardCreationError {
     InvalidColor,
     InvalidCastleRights,
     InvalidEnPassant,
-    InvalidNumber
+    InvalidNumber,
 }
 
 impl CastleRights {
+    /// White kingside castle
     pub const W_OO: u8 = 0b0001;
+    /// White queenside castle
     pub const W_OOO: u8 = 0b0010;
+    /// Black kingside castle
     pub const B_OO: u8 = 0b0100;
+    /// Black queenside castle
     pub const B_OOO: u8 = 0b1000;
+    /// White kingside + queenside castle
     pub const WHITE: u8 = Self::W_OO | Self::W_OOO;
+    /// Black kingside + queenside castle
     pub const BLACK: u8 = Self::B_OO | Self::B_OOO;
 
-    #[inline(always)]
+    #[inline]
+    /// Wrap one of the constants in the `CastleRights` struct
     pub const fn new(value: u8) -> Self {
         Self(value)
     }
 
-    #[inline(always)]
+    #[inline]
+    /// Check if a certain castling right exists
     pub const fn has_exact_rights(self, rights: u8) -> bool {
         self.0 & rights == rights
     }
 
-    #[inline(always)]
+    #[inline]
+    /// Check if one of several castling rights exist
     pub const fn has_any_rights(self, rights: u8) -> bool {
         self.0 & rights > 0
     }
 
-    pub fn remove_right(&mut self, right: u8) {
+    #[inline]
+    pub(crate) fn remove_right(&mut self, right: u8) {
         self.0 &= !right;
     }
-    pub fn add_right(&mut self, right: u8) {
+
+    #[inline]
+    pub(crate) fn add_right(&mut self, right: u8) {
         self.0 |= right;
     }
 }
 
+#[derive(Debug)]
 pub struct InvalidCastleRightsChar;
 impl TryFrom<char> for CastleRights {
     type Error = InvalidCastleRightsChar;
@@ -752,8 +848,8 @@ impl TryFrom<char> for CastleRights {
             'k' => Ok(Self(Self::B_OO)),
             'q' => Ok(Self(Self::B_OOO)),
             '-' => Ok(Self(0)),
-            _ => Err(InvalidCastleRightsChar)
-        } 
+            _ => Err(InvalidCastleRightsChar),
+        }
     }
 }
 
@@ -772,7 +868,9 @@ impl fmt::Display for Board {
 
                 if let Some(p) = self.get_piece(sq) {
                     s += &p.to_string();
-                } else { s += " "; };
+                } else {
+                    s += " ";
+                };
 
                 s += " | ";
             }
@@ -783,16 +881,6 @@ impl fmt::Display for Board {
         s += "  A   B   C   D   E   F   G   H\n";
         s += &format!("To Move: {:?}", self.to_move);
 
-        write!(f, "{s}")
-    }
-}
-
-
-pub struct BAS<'a>(pub &'a Board, pub &'a State);
-impl<'a> fmt::Display for BAS<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut s = format!("{}", self.0);
-        s += &format!("Checkers: {:#x?}", self.1.checkers.as_u64());
         write!(f, "{s}")
     }
 }

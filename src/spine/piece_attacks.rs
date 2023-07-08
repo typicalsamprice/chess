@@ -1,11 +1,8 @@
-use super::Bitboard;
-use super::Square;
-use super::File;
-use super::Color;
-use super::magic_lookup;
+use crate::prelude::*;
+use crate::spine::magic::magic_lookup;
 
-use super::bitboard::PSEUDO_ATTACKS;
-use super::bitboard::PAWN_ATTACKS;
+use crate::spine::bitboard::PSEUDO_ATTACKS;
+use crate::spine::bitboard::PAWN_ATTACKS;
 
 pub fn pawn_attacks_by_board(pawns: Bitboard, color: Color) -> Bitboard {
     match color {

@@ -1,5 +1,5 @@
-use super::{Board, State};
-use super::movegen;
+use crate::prelude::{Board, State};
+use crate::movegen;
 
 pub fn perft(depth: usize) -> usize {
     if depth == 0 { return 0; }
@@ -14,15 +14,15 @@ pub fn perft_on(board: &mut Board, state: &mut State, depth: usize) -> usize {
     perft__::<true>(board, state, depth)
 }
 
-fn perft__<const root: bool>(board: &mut Board, state: &mut State, depth: usize) -> usize {
+fn perft__<const ROOT: bool>(board: &mut Board, state: &mut State, depth: usize) -> usize {
     let mut nodes = 0;
     let mut cur: usize;
     let leaf = depth == 2;
     
     let moves = movegen::generate_legal(board, state);
 
-    for m in moves {
-        if root && depth <= 1 {
+    for &m in moves.iter() {
+        if ROOT && depth <= 1 {
             cur = 1;
             nodes += 1;
         } else {
@@ -35,7 +35,7 @@ fn perft__<const root: bool>(board: &mut Board, state: &mut State, depth: usize)
             board.undo_move(state, m);
         }
 
-        if root && !cfg!(test) {
+        if ROOT && !cfg!(test) {
             println!("{}{}: {cur}", m.from_square(), m.to_square());
         }
     }

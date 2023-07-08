@@ -1,11 +1,9 @@
-#![allow(unused)]
-use super::{File, Rank, bitboard};
-use super::{Bitboard, Forward, Backward};
-use super::Color;
-
 use std::fmt;
 
-use super::bitboard::{SQUARE_DIST, ShiftDir};
+use crate::bitboard::{self, *};
+use crate::prelude::*;
+
+use ShiftDir::*;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -170,7 +168,7 @@ impl Square {
 
 impl fmt::Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let fc = ((self.0 & 7) + b'A') as char;
+        let fc = ((self.0 & 7) + b'a') as char;
         let rc = ((self.0 >> 3) + b'1') as char;
 
         write!(f, "{fc}{rc}")

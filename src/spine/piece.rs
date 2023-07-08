@@ -1,4 +1,4 @@
-use crate::spine::Color;
+use crate::prelude::Color;
 
 use std::fmt;
 

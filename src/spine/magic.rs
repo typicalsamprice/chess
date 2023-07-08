@@ -1,9 +1,7 @@
-use super::{Bitboard, Square};
-use super::{File, Rank};
-
-use super::prng::PRNG;
-
+use crate::prelude::*;
 use crate::macros::pext_u64;
+
+use crate::spine::prng::PRNG;
 
 #[derive(Debug, Clone, Copy)]
 struct Magic {
@@ -130,10 +128,7 @@ unsafe fn init_magics(is_rook: bool) {
 
     for m in magics {
         m.attacks = &table[m.ptr..m.ptr + m.width];
-        assert!(m.attacks.len() > 0);
     }
-
-    // TODO
 }
 
 fn sliding_attack(square: Square, is_rook: bool, occupied_squares: Bitboard) -> Bitboard {
@@ -174,7 +169,7 @@ fn sliding_attack(square: Square, is_rook: bool, occupied_squares: Bitboard) -> 
     rv
 }
 
-pub fn magic_lookup(is_rook: bool, square: Square, occupied: Bitboard) -> Bitboard {
+pub(crate) fn magic_lookup(is_rook: bool, square: Square, occupied: Bitboard) -> Bitboard {
     debug_assert!(square.is_ok());
     let magics = unsafe { if is_rook { ROOK_MAGICS } else { BISHOP_MAGICS } };
     let m = magics[square.as_usize()];
