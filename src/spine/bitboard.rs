@@ -35,7 +35,7 @@ pub enum ShiftDir {
     Backward(Color)
 }
 
-pub(crate) fn initialize_bitboards() {
+pub fn initialize_bitboards() {
     for i in 0..64 {
         for j in 0..64 {
             let s = Square::new(i);
@@ -155,6 +155,10 @@ impl Bitboard {
         return None;
     }
 
+    #[inline]
+    pub fn and_not<T>(self, arg: T) -> Self where T: Into<Self> {
+        self &! arg.into()
+    }
 }
 
 impl ops::Not for Bitboard {
@@ -306,7 +310,14 @@ impl Iterator for Bitboard {
         *self ^= l;
         Some(l)
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let l = self.popcount() as usize;
+        (l, Some(l))
+    }
 }
+impl ExactSizeIterator for Bitboard {}
 
 impl fmt::Debug for Bitboard {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

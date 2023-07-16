@@ -1,4 +1,5 @@
-use chess::*;
+use chess::prelude::*;
+use chess::{bitboard, perft};
 
 fn main() {
     bitboard::initialize_bitboards();
@@ -14,8 +15,8 @@ fn main() {
 
     let d = 3;
     let moves = vec![
-        move_new!(Square::H2, Square::H4),
-        move_new!(Square::G7, Square::G5)];
+        Move::new(Square::H2, Square::H4, MoveFlag::Normal, PieceType::Pawn),
+        Move::new(Square::G7, Square::G5, MoveFlag::Normal, PieceType::Pawn)];
     b.apply_moves(&mut state, &moves).unwrap();
     let u = perft::perft_on(&mut b, &mut state, d - moves.len());
     println!("Nodes: {u}");
