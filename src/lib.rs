@@ -8,10 +8,7 @@
 
 mod spine;
 
-pub use spine::bitboard;
-pub use spine::movegen;
-pub use spine::perft;
-pub use spine::piece_attacks;
+pub use spine::*;
 
 pub(crate) mod macros; 
 
