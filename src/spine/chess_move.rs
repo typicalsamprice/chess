@@ -1,4 +1,4 @@
-use crate::prelude::{Square, PieceType};
+use crate::prelude::{PieceType, Square};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// A struct that holds the bit pattern for a chess move
@@ -16,18 +16,17 @@ pub enum MoveFlag {
     ///
     /// Note that if this flag is present in a [`Move`], there is the requirement
     /// for the "promotion type" bits to be a valid piece pattern
-    Promotion
+    Promotion,
 }
 
 impl Move {
     /// The bit pattern of sixteen zeros, an invalid move
     pub const NULL: Self = Self(0);
-    
+
     /// Create a new [`Move`] by passing in all the bits and pieces manually
-    pub const fn new(from: Square, to: Square,
-                     flag: MoveFlag, promotion_type: PieceType) -> Self {
-        let frombits = from.as_u8() as u16; 
-        let tobits = (to.as_u8() as u16) << 6; 
+    pub const fn new(from: Square, to: Square, flag: MoveFlag, promotion_type: PieceType) -> Self {
+        let frombits = from.as_u8() as u16;
+        let tobits = (to.as_u8() as u16) << 6;
         let flagbits = flag.as_u16();
         let promo_bits = (promotion_type.as_usize() as u16) << 14;
 
@@ -67,7 +66,7 @@ impl Move {
     /// but does do checks on the validity of the bit pattern contained. If the const generic
     /// `FAST == true`, then it only checks that `self` is not equal to [`Move::NULL`]
     pub fn is_ok<const FAST: bool>(self) -> bool {
-        if FAST {  
+        if FAST {
             return self.0 > Self::NULL.0;
         }
         if self.to_square() == self.from_square() {

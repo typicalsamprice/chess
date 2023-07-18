@@ -4,6 +4,7 @@ pub mod chess_move;
 pub mod color;
 pub mod file;
 pub mod magic;
+pub mod movelist;
 pub mod movegen;
 pub mod perft;
 pub mod piece;

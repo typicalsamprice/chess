@@ -1,5 +1,5 @@
-use crate::prelude::*;
 use crate::macros::pext_u64;
+use crate::prelude::*;
 
 use crate::spine::prng::PRNG;
 
@@ -10,7 +10,7 @@ struct Magic {
     shift: u32,
     attacks: &'static [Bitboard],
     width: usize,
-    ptr: usize
+    ptr: usize,
 }
 
 impl Magic {
@@ -22,7 +22,7 @@ impl Magic {
             shift: 0,
             attacks: &[],
             width: 0,
-            ptr: 0
+            ptr: 0,
         }
     }
 
@@ -31,7 +31,7 @@ impl Magic {
         pext_u64(occupied.as_u64(), self.mask.as_u64()) as usize
     }
 
-    #[cfg(not(feature = "pext"))] 
+    #[cfg(not(feature = "pext"))]
     pub fn offset(&self, occupied: Bitboard) -> usize {
         let masked = occupied & self.mask;
         let v = masked * self.magic;
@@ -55,8 +55,16 @@ pub(crate) fn initialize_magics() {
 }
 
 unsafe fn init_magics(is_rook: bool) {
-    let magics = if is_rook { &mut ROOK_MAGICS } else { &mut BISHOP_MAGICS };
-    let table = if is_rook { &mut ROOK_TABLE[..] } else { &mut BISHOP_TABLE[..] };
+    let magics = if is_rook {
+        &mut ROOK_MAGICS
+    } else {
+        &mut BISHOP_MAGICS
+    };
+    let table = if is_rook {
+        &mut ROOK_TABLE[..]
+    } else {
+        &mut BISHOP_TABLE[..]
+    };
 
     let mut b: Bitboard;
     let mut edges: Bitboard;
@@ -69,12 +77,17 @@ unsafe fn init_magics(is_rook: bool) {
     let mut epoch = [0; 4096];
 
     for s in (0..64).map(|sq_idx| Square::new(sq_idx)) {
-        edges = (Bitboard::from(Rank::One) | Bitboard::from(Rank::Eight)) &! Bitboard::from(s.rank());
-        edges |= (Bitboard::from(File::A) | Bitboard::from(File::H)) &! Bitboard::from(s.file());
+        edges =
+            (Bitboard::from(Rank::One) | Bitboard::from(Rank::Eight)) & !Bitboard::from(s.rank());
+        edges |= (Bitboard::from(File::A) | Bitboard::from(File::H)) & !Bitboard::from(s.file());
 
-        let ptr = if s == Square::A1 { 0 } else { magics[s.as_usize() - 1].ptr };
+        let ptr = if s == Square::A1 {
+            0
+        } else {
+            magics[s.as_usize() - 1].ptr
+        };
         let m = &mut magics[s.as_usize()];
-        m.mask = sliding_attack(s, is_rook, Bitboard::ZERO) &! edges;
+        m.mask = sliding_attack(s, is_rook, Bitboard::ZERO) & !edges;
         m.shift = 64 - m.mask.popcount();
         m.ptr = ptr + size;
 
@@ -123,7 +136,6 @@ unsafe fn init_magics(is_rook: bool) {
                 i += 1;
             }
         }
-
     }
 
     for m in magics {
@@ -150,14 +162,14 @@ fn sliding_attack(square: Square, is_rook: bool, occupied_squares: Bitboard) -> 
         let mut curshift = Bitboard::ZERO;
         while sb.gtz() & !(curshift & occupied_squares).gtz() {
             sb = match shift {
-                8 => (sb << 8) &! r1,
-                1 => (sb << 1) &! fa,
-                -1 => (sb >> 1) &! fh,
-                -8 => (sb >> 8) &! r8,
-                9 => (sb << 9) &! (fa | r1),
-                -7 => (sb >> 7) &! (fa | r8),
-                -9 => (sb >> 9) &! (fh | r8),
-                7 => (sb << 7) &! (fh | r1),
+                8 => (sb << 8) & !r1,
+                1 => (sb << 1) & !fa,
+                -1 => (sb >> 1) & !fh,
+                -8 => (sb >> 8) & !r8,
+                9 => (sb << 9) & !(fa | r1),
+                -7 => (sb >> 7) & !(fa | r8),
+                -9 => (sb >> 9) & !(fh | r8),
+                7 => (sb << 7) & !(fh | r1),
                 _ => unreachable!(),
             };
 
@@ -171,7 +183,13 @@ fn sliding_attack(square: Square, is_rook: bool, occupied_squares: Bitboard) -> 
 
 pub(crate) fn magic_lookup(is_rook: bool, square: Square, occupied: Bitboard) -> Bitboard {
     debug_assert!(square.is_ok());
-    let magics = unsafe { if is_rook { ROOK_MAGICS } else { BISHOP_MAGICS } };
+    let magics = unsafe {
+        if is_rook {
+            ROOK_MAGICS
+        } else {
+            BISHOP_MAGICS
+        }
+    };
     let m = magics[square.as_usize()];
 
     let i = m.offset(occupied);

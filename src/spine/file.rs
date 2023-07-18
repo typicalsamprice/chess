@@ -1,6 +1,13 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum File {
-    A, B, C, D, E, F, G, H
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
 }
 
 impl File {
@@ -20,6 +27,6 @@ impl File {
     }
     #[inline(always)]
     pub const fn right(self) -> bool {
-        self.as_usize() >= File::E.as_usize() 
+        self.as_usize() >= File::E.as_usize()
     }
 }

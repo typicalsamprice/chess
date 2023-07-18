@@ -1,5 +1,8 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Color { White, Black }
+pub enum Color {
+    White,
+    Black,
+}
 
 impl Color {
     pub const COUNT: usize = 2;
@@ -11,11 +14,11 @@ impl Color {
 }
 
 impl std::ops::Not for Color {
-    type Output = Self; 
+    type Output = Self;
     fn not(self) -> Self {
         match self {
             Self::White => Self::Black,
-            Self::Black => Self::White
+            Self::Black => Self::White,
         }
     }
 }

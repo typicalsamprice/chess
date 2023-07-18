@@ -1,8 +1,10 @@
+use crate::movelist::Movelist;
 use crate::prelude::{Board, State};
-use crate::movegen::{self, MoveList};
 
 pub fn perft(depth: usize) -> usize {
-    if depth == 0 { return 0; }
+    if depth == 0 {
+        return 0;
+    }
     let mut state = State::new();
     let mut board = Board::new(Board::STARTPOS, &mut state).unwrap();
 
@@ -18,10 +20,10 @@ fn perft__<const ROOT: bool>(board: &mut Board, state: &mut State, depth: usize)
     let mut nodes = 0;
     let mut cur: usize;
     let leaf = depth == 2;
-    
-    let moves: MoveList = todo!();
 
-    for &m in moves.iter() {
+    let moves: Movelist = todo!();
+
+    for m in moves {
         if ROOT && depth <= 1 {
             cur = 1;
             nodes += 1;
@@ -30,7 +32,9 @@ fn perft__<const ROOT: bool>(board: &mut Board, state: &mut State, depth: usize)
             cur = if leaf {
                 // FIXME: Don't realloc, just alter `moves` in-place?
                 todo!()
-            } else { perft__::<false>(board, state, depth - 1) };
+            } else {
+                perft__::<false>(board, state, depth - 1)
+            };
             nodes += cur;
             board.undo_move(state, m);
         }
@@ -39,7 +43,6 @@ fn perft__<const ROOT: bool>(board: &mut Board, state: &mut State, depth: usize)
             println!("{}{}: {cur}", m.from_square(), m.to_square());
         }
     }
-
 
     nodes
 }

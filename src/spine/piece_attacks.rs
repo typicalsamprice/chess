@@ -1,13 +1,17 @@
 use crate::prelude::*;
 use crate::spine::magic::magic_lookup;
 
-use crate::spine::bitboard::PSEUDO_ATTACKS;
 use crate::spine::bitboard::PAWN_ATTACKS;
+use crate::spine::bitboard::PSEUDO_ATTACKS;
 
 pub fn pawn_attacks_by_board(pawns: Bitboard, color: Color) -> Bitboard {
     match color {
-        Color::White => ((pawns << 7) &! Bitboard::from(File::H)) | ((pawns << 9) &! Bitboard::from(File::A)),
-        Color::Black => ((pawns >> 7) &! Bitboard::from(File::A)) | ((pawns >> 9) &! Bitboard::from(File::H))
+        Color::White => {
+            ((pawns << 7) & !Bitboard::from(File::H)) | ((pawns << 9) & !Bitboard::from(File::A))
+        }
+        Color::Black => {
+            ((pawns >> 7) & !Bitboard::from(File::A)) | ((pawns >> 9) & !Bitboard::from(File::H))
+        }
     }
 }
 pub fn pawn_attacks(square: Square, color: Color) -> Bitboard {
@@ -40,8 +44,8 @@ pub fn knight_attacks_by_board(knights: Bitboard) -> Bitboard {
 
     rv |= ((knights >> 15) | (knights << 17)) & !Bitboard::from(File::A);
     rv |= ((knights << 15) | (knights >> 17)) & !Bitboard::from(File::H);
-    rv |= ((knights << 10) | (knights >> 6)) &! (Bitboard::from(File::A) | Bitboard::from(File::B));
-    rv |= ((knights >> 10) | (knights << 6)) &! (Bitboard::from(File::G) | Bitboard::from(File::H));
+    rv |= ((knights << 10) | (knights >> 6)) & !(Bitboard::from(File::A) | Bitboard::from(File::B));
+    rv |= ((knights >> 10) | (knights << 6)) & !(Bitboard::from(File::G) | Bitboard::from(File::H));
 
     rv
 }

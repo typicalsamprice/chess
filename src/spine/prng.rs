@@ -10,7 +10,8 @@ impl PRNG {
     }
 
     pub(crate) fn get<T>(&mut self) -> T
-        where T: From<u64>
+    where
+        T: From<u64>,
     {
         self.0 ^= self.0 >> 12;
         self.0 ^= self.0 << 25;
@@ -21,10 +22,9 @@ impl PRNG {
     }
 
     pub(crate) fn get_sparse<T>(&mut self) -> T
-        where T: From<u64>
+    where
+        T: From<u64>,
     {
-        T::from(self.get::<u64>()
-            & self.get::<u64>()
-            & self.get::<u64>())
+        T::from(self.get::<u64>() & self.get::<u64>() & self.get::<u64>())
     }
 }
