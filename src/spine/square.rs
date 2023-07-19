@@ -6,6 +6,7 @@ use crate::prelude::*;
 use ShiftDir::*;
 
 #[allow(dead_code)]
+#[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Square(u8);
 
@@ -94,7 +95,10 @@ impl std::ops::Add<ShiftDir> for Square {
             Forward(Color::White) | Backward(Color::Black) => 8,
             Backward(Color::White) | Forward(Color::Black) => -8,
         };
-        self.offset(offset).unwrap_or(Self(Self::COUNT as u8)) // This is unsafe!
+        let s = self.offset(offset);
+        // Safety of unwrap(): this should only be used
+        // when going *back* or *forward* to a known square.
+        s.unwrap()
     }
 }
 

@@ -14,11 +14,11 @@ pub mod prelude {
     use super::spine;
 
     pub use spine::bitboard::{Bitboard, ShiftDir};
-    pub use spine::movelist::Movelist;
     pub use spine::board::{Board, CastleRights, State};
     pub use spine::chess_move::{Move, MoveFlag};
     pub use spine::color::Color;
     pub use spine::file::File;
+    pub use spine::movelist::Movelist;
     pub use spine::piece::{Piece, PieceType};
     pub use spine::rank::Rank;
     pub use spine::square::Square;

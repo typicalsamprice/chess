@@ -26,31 +26,9 @@ impl Movelist {
         self.count += 1;
     }
 
-    pub fn push(&mut self, mv: Move) {
-        debug_assert_ne!(self.count, Self::MAX_MOVES);
-        let moves = self.moves.as_slice().clone();
-        self.count += 1;
-        self.moves[1..self.count].copy_from_slice(moves);
-        self.moves[0] = mv;
-    }
-
     #[inline]
     pub const fn as_slice(&self) -> &[Move] {
         &self.moves[0..self.count]
-    }
-    #[inline]
-    pub const fn as_mut_slice(&mut self) -> &mut [Move] {
-        &mut self.moves[0..self.count]
-    }
-
-    #[inline]
-    pub const fn as_ptr(&mut self) -> *const Move {
-        self.as_slice().as_ptr()
-    }
-
-    #[inline]
-    pub const fn as_mut_ptr(&mut self) -> *mut Move {
-        self.as_mut_slice().as_mut_ptr()
     }
 
     pub fn remove(&mut self, index: usize) -> Move {

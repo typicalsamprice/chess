@@ -23,7 +23,7 @@ fn perft__<const ROOT: bool>(board: &mut Board, state: &mut State, depth: usize)
 
     let moves: Movelist = todo!();
 
-    for m in moves {
+    for &m in moves.iter() {
         if ROOT && depth <= 1 {
             cur = 1;
             nodes += 1;

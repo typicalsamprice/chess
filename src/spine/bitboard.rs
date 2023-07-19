@@ -27,6 +27,7 @@ pub fn line(a: Square, b: Square) -> Bitboard {
     unsafe { LINE_BB[a.as_usize()][b.as_usize()] }
 }
 
+#[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Bitboard(u64);
 
@@ -300,6 +301,15 @@ impl From<Square> for Bitboard {
         s.to_bitboard()
     }
 }
+impl From<Option<Square>> for Bitboard {
+    fn from(opts: Option<Square>) -> Self {
+        match opts {
+            Some(s) => Self::from(s),
+            None => Self::ZERO,
+        }
+    }
+}
+
 impl From<File> for Bitboard {
     fn from(f: File) -> Self {
         Self(0x0101010101010101_u64 << f.as_usize())
