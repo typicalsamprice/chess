@@ -1,6 +1,5 @@
 use crate::macros::pext_u64;
 use crate::prelude::*;
-
 use crate::spine::prng::PRNG;
 
 #[derive(Debug, Clone, Copy)]

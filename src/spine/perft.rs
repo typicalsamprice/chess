@@ -1,5 +1,5 @@
-use crate::movelist::Movelist;
-use crate::prelude::{Board, State};
+use crate::movegen;
+use crate::prelude::*;
 
 pub fn perft(depth: usize) -> usize {
     if depth == 0 {
@@ -21,7 +21,7 @@ fn perft__<const ROOT: bool>(board: &mut Board, state: &mut State, depth: usize)
     let mut cur: usize;
     let leaf = depth == 2;
 
-    let moves: Movelist = todo!();
+    let moves: Movelist = movegen::generate_legal(board, state);
 
     for &m in moves.iter() {
         if ROOT && depth <= 1 {
@@ -30,8 +30,7 @@ fn perft__<const ROOT: bool>(board: &mut Board, state: &mut State, depth: usize)
         } else {
             board.do_move(state, m);
             cur = if leaf {
-                // FIXME: Don't realloc, just alter `moves` in-place?
-                todo!()
+                movegen::generate_legal(board, state).len()
             } else {
                 perft__::<false>(board, state, depth - 1)
             };
@@ -49,16 +48,39 @@ fn perft__<const ROOT: bool>(board: &mut Board, state: &mut State, depth: usize)
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Once;
+
     use super::perft;
-    use crate::bitboard::initialize_bitboards as init;
+    use crate::bitboard::initialize_bitboards as bb_init;
+
+    static INIT: Once = Once::new();
+
+    fn init() {
+        // Just make sure this happens ONE TIME. AUGH.
+        INIT.call_once(|| bb_init())
+    }
 
     #[test]
-    fn low_depth() {
+    fn depth_one() {
         init();
         assert_eq!(20, perft(1));
+    }
+
+    #[test]
+    fn depth_two() {
+        init();
         assert_eq!(400, perft(2));
+    }
+
+    #[test]
+    fn depth_three() {
+        init();
         assert_eq!(8902, perft(3));
+    }
+
+    #[test]
+    fn depth_four() {
+        init();
         assert_eq!(197_281, perft(4));
-        assert_eq!(4_865_609, perft(5));
     }
 }

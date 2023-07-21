@@ -1,4 +1,5 @@
-use crate::prelude::{PieceType, Square};
+use crate::prelude::*;
+use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// A struct that holds the bit pattern for a chess move
@@ -21,7 +22,7 @@ pub enum MoveFlag {
 
 impl Move {
     /// The bit pattern of sixteen zeros, an invalid move
-    pub const NULL: Self = Self(0);
+    pub const NULL: Self = Self(0x0000);
 
     /// Create a new [`Move`] by passing in all the bits and pieces manually
     pub const fn new(from: Square, to: Square, flag: MoveFlag, promotion_type: PieceType) -> Self {
@@ -106,5 +107,11 @@ impl MoveFlag {
     #[inline]
     const fn as_u16(self) -> u16 {
         (self as u16) << 12
+    }
+}
+
+impl fmt::Display for Move {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}{}", self.from_square(), self.to_square())
     }
 }

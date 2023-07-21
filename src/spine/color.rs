@@ -5,11 +5,17 @@ pub enum Color {
 }
 
 impl Color {
+    #[doc(hidden)]
     pub const COUNT: usize = 2;
 
-    #[inline(always)]
-    pub const fn as_usize(self) -> usize {
-        self as usize
+    #[inline]
+    pub const fn as_usize(&self) -> usize {
+        *self as usize
+    }
+
+    #[inline]
+    pub const fn multiplier(self) -> i32 {
+        1 - (2 * self as i32)
     }
 }
 

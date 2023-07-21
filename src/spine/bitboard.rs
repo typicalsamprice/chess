@@ -12,6 +12,18 @@ pub(crate) static mut PSEUDO_ATTACKS: [[Bitboard; 64]; 2] = [[Bitboard::ZERO; 64
 static mut LINE_BB: [[Bitboard; 64]; 64] = [[Bitboard::ZERO; 64]; 64];
 static mut BETWEEN_BB: [[Bitboard; 64]; 64] = [[Bitboard::ZERO; 64]; 64];
 
+/// A wrapper around a `u64` that denotes a chessboard and the occupied squares
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Bitboard(u64);
+
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShiftDir {
+    Forward(Color),
+    Backward(Color),
+}
+
 pub fn between<const KEEP_END: bool>(from: Square, to: Square) -> Bitboard {
     debug_assert!(from.is_ok() && to.is_ok());
     let k = unsafe { BETWEEN_BB[from.as_usize()][to.as_usize()] };
@@ -25,16 +37,6 @@ pub fn between<const KEEP_END: bool>(from: Square, to: Square) -> Bitboard {
 pub fn line(a: Square, b: Square) -> Bitboard {
     debug_assert!(a.is_ok() && b.is_ok());
     unsafe { LINE_BB[a.as_usize()][b.as_usize()] }
-}
-
-#[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Bitboard(u64);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ShiftDir {
-    Forward(Color),
-    Backward(Color),
 }
 
 pub fn initialize_bitboards() {
@@ -97,7 +99,7 @@ pub fn initialize_bitboards() {
 
 impl Default for Bitboard {
     fn default() -> Self {
-        Self(0)
+        Self::ZERO
     }
 }
 
@@ -146,7 +148,6 @@ impl Bitboard {
 
     #[inline(always)]
     pub const fn lsb(self) -> Square {
-        debug_assert!(self.gtz());
         Square::new(self.0.trailing_zeros() as u8)
     }
     #[inline]

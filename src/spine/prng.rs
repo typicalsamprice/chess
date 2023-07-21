@@ -1,5 +1,3 @@
-use std::ops::BitAnd;
-
 #[derive(Debug)]
 pub(crate) struct PRNG(u64);
 

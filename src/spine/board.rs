@@ -1,11 +1,10 @@
 use crate::bitboard;
+use crate::piece_attacks;
 use crate::prelude::*;
 
 use std::fmt;
 use std::mem::transmute;
 use std::ptr::NonNull;
-
-use super::piece_attacks;
 
 macro_rules! ret_false_if {
     ($cond:expr) => {
@@ -23,6 +22,10 @@ pub struct Board {
     piece_count: [i8; PieceType::COUNT * Color::COUNT],
     to_move: Color,
     ply: usize,
+
+    history: Vec<Move>,
+
+    is960: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -96,13 +99,18 @@ impl Board {
             & self.spec(Color::Black, PieceType::Pawn);
         let bpawns = piece_attacks::pawn_attacks(square, Color::Black)
             & self.spec(Color::White, PieceType::Pawn);
+        let kings = piece_attacks::king_attacks(square) & self.piece_type(PieceType::King);
+
+        knights | wpawns | bpawns | kings | self.sliders_to(square, bits)
+    }
+
+    fn sliders_to(&self, square: Square, bits: Bitboard) -> Bitboard {
         let rooks = piece_attacks::rook_attacks(square, bits)
             & self.piece_type2(PieceType::Rook, PieceType::Queen);
         let bishops = piece_attacks::bishop_attacks(square, bits)
             & self.piece_type2(PieceType::Bishop, PieceType::Queen);
-        let kings = piece_attacks::king_attacks(square) & self.piece_type(PieceType::King);
 
-        knights | wpawns | bpawns | rooks | bishops | kings
+        rooks | bishops
     }
 
     pub fn is_legal(&self, s: &State, mv: Move) -> bool {
@@ -112,157 +120,127 @@ impl Board {
         let t = mv.to_square();
         let us = self.to_move();
         let them = !us;
-        let k = self.king(self.to_move());
+        let k = self.king(us);
 
-        if s.checkers().gtz() {
-            ret_false_if!(s.checkers().more_than_one() && f != k);
-            if s.checkers().popcount() == 1 {
-                let b = bitboard::between::<true>(k, s.checkers().lsb());
-                ret_false_if!(!(b & t).gtz());
+        match s.checkers().popcount() {
+            0 => (),
+            1 => {
+                let to_checker = bitboard::between::<true>(k, s.checkers().lsb());
+                if f != k {
+                    // Must capture or interpose
+                    ret_false_if!(!(to_checker & t).gtz());
+                }
             }
+            2 => {
+                ret_false_if!(f != k)
+            }
+            3.. => unreachable!(),
         }
 
-        if (s.blockers[us.as_usize()] & f).gtz() {
-            let mut pns = s.pinners[them.as_usize()];
-            let mut p = None;
-            while let Some(pinner) = pns.pop_lsb() {
-                if k.in_line2(f, pinner) {
-                    p = Some(pinner);
+        // King cannot walk into check
+        if f == k {
+            let rk = if mv.flag() == MoveFlag::Castle {
+                let mv_rook = bitboard::between::<true>(f, t) & self.spec(us, PieceType::Rook);
+                debug_assert_eq!(mv_rook.popcount(), 1);
+                mv_rook
+            } else {
+                Bitboard::ZERO
+            };
+            ret_false_if!((self.attacks_to_bits(t, self.all() ^ f ^ rk) & self.color(them)).gtz());
+        }
+
+        if (s.blockers(us) & f).gtz() {
+            let pinners = s.pinners(them);
+            let mut pinner = f;
+            for x in pinners {
+                if (bitboard::between::<false>(x, k) & f).gtz() {
+                    pinner = x;
                     break;
                 }
             }
 
-            ret_false_if!(!p
-                .expect("Didn't find pinner for pinned piece")
-                .in_line2(t, k));
-        }
-
-        if mv.flag() == MoveFlag::Castle {
-            ret_false_if!(s.checkers().gtz());
-            let mut ibw = bitboard::between::<true>(f, t);
-            while let Some(sq) = ibw.pop_lsb() {
-                ret_false_if!((self.attacks_to(sq) & self.color(them)).gtz());
-            }
+            debug_assert!(pinner != f);
+            // The pinned piece must move on the line
+            ret_false_if!(!(bitboard::between::<false>(pinner, k) & t).gtz());
         }
 
         if mv.flag() == MoveFlag::EnPassant {
-            ret_false_if!(
-                (self.attacks_to_bits(k, self.all() ^ s.en_passant().unwrap() ^ f ^ t)
-                    & self.color(!self.to_move()))
-                .gtz()
-            );
+            let wo_extras = self.all() ^ f ^ Square::build(t.file(), f.rank());
+            let atts = self.attacks_to_bits(k, wo_extras);
+            ret_false_if!((atts & self.color(them)).gtz());
+        } else if mv.flag() == MoveFlag::Castle {
+            // Cannot castle through check
+            let squares = bitboard::between::<true>(f, t);
+            let bits = self.all() ^ f;
+            let thbits = self.color(them);
+            for x in squares {
+                ret_false_if!((self.attacks_to_bits(x, bits) & thbits).gtz());
+            }
         }
 
         true
     }
 
     pub fn is_pseudo_legal(&self, s: &State, mv: Move) -> bool {
+        use MoveFlag::*;
+        use PieceType::*;
+
         let f = mv.from_square();
         let t = mv.to_square();
+        let flag = mv.flag();
         let us = self.to_move();
         let them = !us;
+        let k = self.king(us);
 
-        ret_false_if!(f.distance(t) == 0);
+        ret_false_if!(f == t);
 
-        let Some(mp) = self.get_piece(f) else { return false; };
-        ret_false_if!(mp.color() != us);
+        let mov = self.get_piece(f);
+        ret_false_if!(mov.is_none());
+        let mov = mov.unwrap();
 
-        let captured_piece = if let Some(cp) = self.get_piece(t) {
-            ret_false_if!(cp.color() == us);
-            Some(cp.kind())
+        let capsq = if flag == EnPassant {
+            Square::build(t.file(), f.rank())
         } else {
-            None
+            t
         };
+        let cap = self.get_piece(capsq);
 
-        if mp.kind() == PieceType::Pawn {
-            if mv.flag() == MoveFlag::EnPassant {
-                ret_false_if!(f.rank() != Rank::Five.relative_to(us));
-                ret_false_if!(t.rank() != Rank::Six.relative_to(us));
-                ret_false_if!(f.distance(t) != 1);
-                ret_false_if!(mp.kind() != PieceType::Pawn);
-                ret_false_if!(s.en_passant() != Some(t));
-                ret_false_if!(self.get_piece(t).is_some());
-                ret_false_if!(
-                    self.get_piece(Square::build(t.file(), f.rank()))
-                        != Some(PieceType::Pawn + them)
-                );
-            }
+        if let Some(cap) = cap {
+            ret_false_if!(cap.color() == us);
 
-            match f.distance(t) {
-                0 => unreachable!(),
-                1 => {
-                    match us {
-                        Color::White => ret_false_if!(f > t),
-                        Color::Black => ret_false_if!(f < t),
-                    }
-
-                    if f.file() == t.file() {
-                        ret_false_if!(captured_piece.is_some());
-                    } else {
-                        ret_false_if!(captured_piece.is_none());
-                    }
-                }
-                2 => {
-                    ret_false_if!(f.rank() != Rank::Two.relative_to(us));
-                    ret_false_if!(f.file() != t.file());
-                    let sum = f.as_u8() + t.as_u8();
-                    let ibw_val = sum / 2;
-                    let ibw = Square::new(ibw_val);
-                    ret_false_if!(self.get_piece(ibw).is_some());
-                }
-                _ => return false,
-            }
-
-            ret_false_if!(
-                mv.flag() == MoveFlag::Promotion && t.rank() != Rank::Eight.relative_to(us)
-            );
-            if t.rank() == Rank::Eight.relative_to(us) {
-                ret_false_if!(mv.flag() != MoveFlag::Promotion);
-                ret_false_if!(mv.promotion_type() == PieceType::Pawn);
-                ret_false_if!(mv.promotion_type() == PieceType::King);
+            // EP
+            if capsq != t {
+                ret_false_if!(cap != Piece::new(Pawn, them));
+                ret_false_if!(mov != Piece::new(Pawn, us));
             }
         }
 
-        if mp.kind() == PieceType::Bishop || mp.kind() == PieceType::Queen {
-            let possible_moves = piece_attacks::bishop_attacks(f, self.all());
-            ret_false_if!(possible_moves & t != t.into());
-        }
-        if mp.kind() == PieceType::Rook || mp.kind() == PieceType::Queen {
-            let possible_moves = piece_attacks::rook_attacks(f, self.all());
-            ret_false_if!(possible_moves & t != t.into());
+        // The 960 check is because you could castle "through" your own rook
+        if !self.is960 || self.get_piece(t) != Some(Piece::new(Rook, us)) {
+            let between_to_from = bitboard::between::<false>(f, t);
+            // Can't move THROUGH a piece.
+            ret_false_if!((between_to_from & self.all()).gtz());
         }
 
-        if mp.kind() == PieceType::Knight {
-            ret_false_if!(piece_attacks::knight_attacks(f) & t != t.into());
-        }
+        if flag == Castle {
+            let right = s.castle_rights().find(f, t);
 
-        if mp.kind() == PieceType::King {
-            match f.distance(t) {
-                0 => unreachable!(),
-                1 => (),
-                2 => {
-                    ret_false_if!(mv.flag() != MoveFlag::Castle);
-                    ret_false_if!(f.rank() != t.rank());
-                    ret_false_if!(f.rank() != Rank::One.relative_to(us));
-                    ret_false_if!(f != Square::E1.relative_to(us));
-                    let ibs = (f.as_u8() + t.as_u8()) / 2;
-                    let ibsq = Square::new(ibs);
-                    ret_false_if!(self.get_piece(ibsq).is_some());
-                    let (cr, rooksq) = match t.relative_to(us) {
-                        Square::G1 => match us {
-                            Color::White => (CastleType::WhiteShort, Square::H1),
-                            Color::Black => (CastleType::BlackShort, Square::H8),
-                        },
-                        Square::C1 => match us {
-                            Color::White => (CastleType::WhiteLong, Square::A1),
-                            Color::Black => (CastleType::BlackLong, Square::A8),
-                        },
-                        _ => return false,
-                    };
+            ret_false_if!(right.is_none());
+            let right = right.unwrap();
 
-                    ret_false_if!(!s.castle_rights().has_right(cr));
-                    ret_false_if!((self.all() & bitboard::between::<false>(f, rooksq)).gtz());
-                }
+            ret_false_if!(!s.castle_rights().has_right(right));
+            let (from, to) = s.castle_rights().get(right).unwrap();
+            ret_false_if!(f != k);
+
+            if let Some(cap) = cap {
+                ret_false_if!(!self.is960);
+                ret_false_if!(cap != Piece::new(Rook, us));
+            }
+
+            let between_to_from = bitboard::between::<true>(f, t) & self.all();
+            match between_to_from.popcount() {
+                0 => (),
+                1 => ret_false_if!(!self.is960 || !(between_to_from & self.spec(us, Rook)).gtz()),
                 _ => return false,
             }
         }
@@ -270,57 +248,26 @@ impl Board {
         true
     }
 
-    // use StateP.borrow_mut() for these types of things
-    pub fn compute_state(&self, s: &mut State) {
+    fn compute_state(&self, s: &mut State) {
         const Z: Bitboard = Bitboard::ZERO;
-        let (us, them) = (self.to_move(), !self.to_move());
+        let us = self.to_move();
+        let them = !us;
 
-        // Reset it all
+        debug_assert_eq!(self.attacks_to(self.king(them)) & self.color(us), Z);
+
         s.checkers = Z;
         s.blockers[us.as_usize()] = Z;
         s.blockers[them.as_usize()] = Z;
-        s.pinners[us.as_usize()] = Z;
-        s.pinners[them.as_usize()] = Z;
         s.check_squares[PieceType::King.as_usize()] = Z;
-
-        debug_assert!((self.attacks_to(self.king(them)) & self.color(us)).gtz() == false);
-        s.checkers = self.attacks_to(self.king(us)) & self.color(them);
-
-        let rookqs = self.piece_type2(PieceType::Rook, PieceType::Queen) & self.color(them);
-        let bishqs = self.piece_type2(PieceType::Bishop, PieceType::Queen) & self.color(them);
 
         let king = self.king(us);
 
-        let rks = piece_attacks::rook_attacks(king, Z) & rookqs;
-        let bps = piece_attacks::bishop_attacks(king, Z) & bishqs;
-        for pp in rks {
-            let b = bitboard::between::<false>(king, pp);
-            let overlap = b & self.all();
-            if overlap.popcount() == 1 {
-                let l = overlap.lsb();
-                let p = self
-                    .get_piece(l)
-                    .expect("compute-state: rook or queen not found but detected as blocker");
-                s.blockers[p.color().as_usize()] |= l;
-                if p.color() == us {
-                    s.pinners[them.as_usize()] |= pp;
-                }
-            }
-        }
-        for pp in bps {
-            let b = bitboard::between::<false>(king, pp);
-            let overlap = b & self.all();
-            if overlap.popcount() == 1 {
-                let l = overlap.lsb();
-                let p = self
-                    .get_piece(l)
-                    .expect("compute-state: bishop or queen not found but detected as blocker");
-                s.blockers[p.color().as_usize()] |= l;
-                if p.color() == us {
-                    s.pinners[them.as_usize()] |= pp;
-                }
-            }
-        }
+        s.checkers = self.attacks_to(king) & self.color(them);
+
+        s.blockers[Color::White.as_usize()] =
+            self.pinner_blocker(&mut s.pinners[Color::Black.as_usize()], Color::White);
+        s.blockers[Color::Black.as_usize()] =
+            self.pinner_blocker(&mut s.pinners[Color::White.as_usize()], Color::Black);
 
         s.check_squares[PieceType::Pawn.as_usize()] = piece_attacks::pawn_attacks(king, us);
         s.check_squares[PieceType::Knight.as_usize()] = piece_attacks::knight_attacks(king);
@@ -332,9 +279,30 @@ impl Board {
             | s.check_squares[PieceType::Rook.as_usize()];
     }
 
-    pub fn do_move(&mut self, s: &mut State, mv: Move) {
+    fn pinner_blocker(&self, pinners: &mut Bitboard, color: Color) -> Bitboard {
+        let mut blockers = Bitboard::ZERO;
+        *pinners = Bitboard::ZERO;
+
+        let king = self.king(color);
+        let thematts = self.sliders_to(king, Bitboard::ZERO) & self.color(!color);
+
+        for slider in thematts {
+            let line_tk = bitboard::between::<false>(slider, king) & self.all();
+            if line_tk.gtz() {
+                if line_tk.more_than_one() {
+                    continue;
+                }
+                blockers |= line_tk; // That's a blocker!
+                *pinners |= slider; // That's a pinner
+            }
+        }
+
+        blockers
+    }
+
+    pub fn do_move(&mut self, s: &mut State, mv: Move) -> Result<(), Move> {
         if !self.is_legal(s, mv) {
-            return;
+            return Err(mv);
         }
 
         unsafe {
@@ -371,7 +339,7 @@ impl Board {
             } else {
                 t
             };
-            self.remove_piece(cap_square);
+            let _ = self.remove_piece(cap_square);
 
             if pc == PieceType::Rook {
                 match t.relative_to(us) {
@@ -399,7 +367,7 @@ impl Board {
             debug_assert_eq!(f.distance(t), 2);
             self.do_castle::<true>(s, us, f, t);
         } else {
-            self.remove_piece(f);
+            let _ = self.remove_piece(f);
             self.add_piece(t, mov);
         }
 
@@ -420,7 +388,7 @@ impl Board {
             } else if flag == MoveFlag::Promotion {
                 let promp = promt + us;
                 debug_assert!(t.rank() == Rank::Eight.relative_to(us));
-                self.remove_piece(t);
+                let _ = self.remove_piece(t);
                 self.add_piece(t, promp);
             }
         }
@@ -432,9 +400,11 @@ impl Board {
         }
 
         s.captured_piece = cap;
+        self.to_move = them;
+        self.history.push(mv);
         self.compute_state(s);
 
-        self.to_move = them;
+        Ok(())
     }
 
     pub fn apply_moves(&mut self, s: &mut State, moves: &[Move]) -> Result<(), Move> {
@@ -459,17 +429,31 @@ impl Board {
 
         let mov = self
             .get_piece(t)
+            .ok_or_else(|| {
+                format!(
+                    "{:?} {:?}",
+                    self.history
+                        .iter()
+                        .map(|m| format!("{m}"))
+                        .collect::<Vec<_>>(),
+                    self.history.pop()
+                )
+            })
             .expect("undo-move: could not find moved piece");
         debug_assert!(self.get_piece(f).is_none());
         debug_assert!(s.captured_piece != Some(PieceType::King));
 
+        let prev_mov = self.history.pop();
+        debug_assert_eq!(Some(mv), prev_mov);
+
         if flag == MoveFlag::Promotion {
             debug_assert!(t.rank() == Rank::Eight.relative_to(us));
             debug_assert!(mov.kind() == mv.promotion_type());
-            self.remove_piece(t);
+            let _ = self.remove_piece(t);
             let p = PieceType::Pawn + us;
             self.add_piece(t, p);
         }
+
         if flag == MoveFlag::Castle {
             self.do_castle::<false>(s, us, f, t);
         } else {
@@ -537,6 +521,24 @@ impl Board {
         self.add_piece(rook_t, r);
     }
 
+    pub(crate) fn pseudo_legal_castle(&self, from: Square, to: Square) -> bool {
+        let pcf = self.get_piece(from);
+        let pct = self.get_piece(to);
+
+        let Some(pcf) = pcf else { return false; };
+        if pcf.kind() != PieceType::King {
+            return false;
+        }
+
+        let Some(pct) = pct else { return true; };
+        if pct != Piece::new(PieceType::Rook, pcf.color()) {
+            return false;
+        }
+
+        let betw = bitboard::between::<false>(from, to) & self.all();
+        !betw.gtz()
+    }
+
     /// Create a new [`Board`] and set up a proper [`State`] for
     /// the board given some [FEN](https://en.wikipedia.org/wiki/Forsyth-Edwards_Notation)
     pub fn new<S>(fen: S, state: &mut State) -> Result<Self, BoardCreationError>
@@ -550,6 +552,9 @@ impl Board {
             piece_count: [0; PieceType::COUNT * Color::COUNT],
             to_move: Color::White,
             ply: 0,
+
+            history: Vec::with_capacity(2usize.pow(11)),
+            is960: false,
         };
 
         let fen: String = fen.into();
@@ -623,7 +628,9 @@ impl Board {
             return Err(BoardCreationError::InvalidCastleRights);
         }
 
+        let mut last: char = 0 as char;
         for c in chars.by_ref() {
+            last = c;
             if c == ' ' {
                 break;
             }
@@ -651,13 +658,19 @@ impl Board {
             }
         }
 
-        if let Some(c) = chars.next() {
-            // Consume the next char
-            if c != ' ' {
+        if last == 0 as char {
+            return Err(BoardCreationError::InvalidCastleRights);
+        }
+
+        if last != ' ' {
+            if let Some(c) = chars.next() {
+                // Consume the next char
+                if c != ' ' {
+                    return Err(BoardCreationError::InvalidEnPassant);
+                }
+            } else {
                 return Err(BoardCreationError::InvalidEnPassant);
             }
-        } else {
-            return Err(BoardCreationError::InvalidEnPassant);
         }
 
         if let Some(c) = chars.next() {
@@ -779,10 +792,12 @@ impl State {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// A wrapper around a bitfield that denotes
-/// certain castling privileges
-pub struct CastleRights([Option<(Square, Square)>; 4]);
+/// A wrapper that denotes certain castling privileges
+pub struct CastleRights([CastleRightInternal; 4]);
+type CastleRightInternal = Option<(Square, Square)>; // Not public, doesn't need to be
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[allow(missing_docs)]
 pub enum CastleType {
     WhiteShort,
     WhiteLong,
@@ -795,15 +810,27 @@ pub enum CastleType {
 
 impl CastleRights {
     #[inline]
-    pub fn set(&mut self, ctyp: CastleType, right: Option<(Square, Square)>) {
+    pub fn set(&mut self, ctyp: CastleType, right: CastleRightInternal) {
         debug_assert!(ctyp <= CastleType::BlackLong);
         self.0[ctyp as usize] = right;
     }
 
     #[inline]
-    pub fn get(&self, ctyp: CastleType) -> Option<(Square, Square)> {
+    pub fn get(&self, ctyp: CastleType) -> CastleRightInternal {
         debug_assert!(ctyp <= CastleType::BlackLong);
         self.0[ctyp as usize]
+    }
+
+    /// Find the [`CastleType`] a certain pair of squares refer to, if any
+    pub fn find(&self, from: Square, to: Square) -> Option<CastleType> {
+        use CastleType::*;
+        for ct in [WhiteShort, WhiteLong, BlackShort, BlackLong] {
+            if self.get(ct) == Some((from, to)) {
+                return Some(ct);
+            }
+        }
+
+        None
     }
 
     #[inline]

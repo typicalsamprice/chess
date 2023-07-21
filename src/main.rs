@@ -1,24 +1,18 @@
+use chess::movegen;
 use chess::prelude::*;
 use chess::{bitboard, perft};
+
+use chess::macros::move_new;
 
 fn main() {
     bitboard::initialize_bitboards();
 
-    println!("Nodes: {}", perft::perft(3));
-    return;
-
-    let _pin_fen_test = "8/8/5k2/2q5/3b4/2P5/2K5/8 w - - 0 1";
-    let _start_pos = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
     let mut state = State::new();
-    let mut b = Board::new(_start_pos, &mut state).unwrap();
+    let mut _board = Board::new(Board::STARTPOS, &mut state).unwrap();
 
-    let d = 3;
-    let moves = vec![
-        Move::new(Square::H2, Square::H4, MoveFlag::Normal, PieceType::Pawn),
-        Move::new(Square::G7, Square::G5, MoveFlag::Normal, PieceType::Pawn),
-    ];
-    b.apply_moves(&mut state, &moves).unwrap();
-    let u = perft::perft_on(&mut b, &mut state, d - moves.len());
-    println!("Nodes: {u}");
+    let pin_test_fen = "rnbqkbnr/pppppppp/8/8/Q1P5/8/PP1PPPPP/RNB1KBNR b KQkq - 0 1";
+    let mut board = Board::new(pin_test_fen, &mut state).unwrap();
+    println!("{board}");
+    let m = move_new!(Square::D7, Square::D6);
+    board.do_move(&mut state, m).unwrap();
 }

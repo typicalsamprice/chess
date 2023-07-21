@@ -3,23 +3,27 @@
 #[warn(trivial_casts, trivial_numeric_casts)]
 #[warn(unused_results)]
 #[warn(missing_docs)]
-// FIXME: Make this sane. Also, does #[deny(missing_docs)] do anything?
 mod spine;
 
-pub use spine::*;
+pub use spine::bitboard;
+#[doc(inline)]
+pub use spine::movegen;
+pub use spine::perft;
+#[doc(inline)]
+pub use spine::piece_attacks;
 
-pub(crate) mod macros;
+pub mod macros;
 
 pub mod prelude {
     use super::spine;
 
-    pub use spine::bitboard::{Bitboard, ShiftDir};
-    pub use spine::board::{Board, CastleRights, State};
-    pub use spine::chess_move::{Move, MoveFlag};
-    pub use spine::color::Color;
-    pub use spine::file::File;
-    pub use spine::movelist::Movelist;
-    pub use spine::piece::{Piece, PieceType};
-    pub use spine::rank::Rank;
-    pub use spine::square::Square;
+    pub use spine::Color;
+    pub use spine::File;
+    pub use spine::Movelist;
+    pub use spine::Rank;
+    pub use spine::Square;
+    pub use spine::{Bitboard, ShiftDir};
+    pub use spine::{Board, CastleRights, State};
+    pub use spine::{Move, MoveFlag};
+    pub use spine::{Piece, PieceType};
 }

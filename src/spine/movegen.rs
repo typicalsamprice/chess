@@ -126,19 +126,16 @@ fn generate_piece_moves(
     let rights = CastleRights::rights_for(us);
     for right in rights {
         if let Some((from, to)) = _state.castle_rights().get(right) {
+            if !board.pseudo_legal_castle(from, to) {
+                continue;
+            }
             debug_assert!(from == king);
             list.push_back(move_new!(from, to, MoveFlag::Castle));
         }
     }
 }
 
-fn generate_type(board: &Board, state: &State, gen: GenType) -> Movelist {
-    match gen {
-        Legal => generate_legal(board, state),
-        _ => todo!(),
-    }
-}
-fn generate_legal(board: &Board, state: &State) -> Movelist {
+pub fn generate_legal(board: &Board, state: &State) -> Movelist {
     let us = board.to_move();
     let gen = if state.checkers().gtz() {
         Evasions
@@ -154,6 +151,82 @@ fn generate_legal(board: &Board, state: &State) -> Movelist {
 
     generate_pawn_moves(&mut ml, board, state, gen, targets);
     generate_piece_moves(&mut ml, board, state, gen, targets);
+
+    let mut i = 0;
+    let mut max_excl = ml.len();
+    'outer: loop {
+        if i == max_excl {
+            break;
+        }
+        let m = ml.get(i).expect("Iterating over an invalid Movelist");
+        let f = m.from_square();
+        let t = m.to_square();
+
+        let mov = board.get_piece(f).expect("Generated move without piece");
+        let movt = mov.kind();
+
+        if (state.blockers(us) & f).gtz() || movt == King {
+            if movt == King {
+                let squares = bitboard::between::<true>(f, t);
+                if ((squares ^ t) & board.all()).gtz() {
+                    max_excl -= 1;
+                    let _ = ml.swap_remove(i);
+                    continue 'outer;
+                }
+                for x in squares {
+                    if (board.attacks_to_bits(x, board.all() ^ f) & board.color(!us)).gtz() {
+                        max_excl -= 1;
+                        let _ = ml.swap_remove(i);
+                        continue 'outer;
+                    }
+                }
+
+                if m.flag() == MoveFlag::Castle {
+                    let mut rook_from = CastleRights::rights_for(us)
+                        .iter()
+                        .map(|ct| {
+                            let (crf, crt) = state
+                                .castle_rights()
+                                .get(*ct)
+                                .expect("Generated invalid castle move");
+                            if crf == f && crt == t {
+                                let bt = bitboard::between::<true>(f, t);
+                                let rooks = bt & board.spec(us, Rook);
+                                debug_assert!(rooks.popcount() == 1);
+                                rooks.lsb()
+                            } else {
+                                Bitboard::ZERO.lsb()
+                            } // An inherently non-OK Square
+                        })
+                        .collect::<Vec<Square>>();
+                    rook_from.retain(|&s| s.is_ok());
+                    let rook_from = *rook_from.first().expect("Generated invalid castle move");
+                    if (board.attacks_to_bits(t, board.all() ^ rook_from) & board.color(!us)).gtz()
+                    {
+                        max_excl -= 1;
+                        let _ = ml.swap_remove(i);
+                        continue 'outer;
+                    }
+                }
+            } else {
+                if state.checkers().more_than_one() {
+                    max_excl -= 1;
+                    let _ = ml.swap_remove(i);
+                    continue 'outer;
+                }
+
+                let pnr = state.pinners(!us).lsb();
+                let kng = board.king(us);
+                if !pnr.in_line2(kng, t) {
+                    max_excl -= 1;
+                    let _ = ml.swap_remove(i);
+                    continue 'outer;
+                }
+            }
+        }
+
+        i += 1;
+    }
 
     ml
 }

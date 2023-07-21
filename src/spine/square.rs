@@ -1,56 +1,81 @@
 use std::fmt;
 
-use crate::bitboard::{self, *};
+use crate::bitboard::{self, SQUARE_DIST};
 use crate::prelude::*;
 
 use ShiftDir::*;
 
+/// A square on the chessboard
 #[allow(dead_code)]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Square(u8);
 
 impl Square {
+    /// The number of squares on the board
     pub const COUNT: usize = 64;
 
-    #[inline(always)]
+    /// Create a new [`Square`] from a raw `u8`
+    ///
+    /// # Panics
+    ///
+    /// This method panics if `value` is not within [0, 64)
+    #[inline]
     pub const fn new(value: u8) -> Self {
-        debug_assert!(value < Self::COUNT as u8);
+        debug_assert!(value <= 63);
         Self(value)
     }
 
-    #[inline(always)]
+    /// Create a new [`Square`] from its constituent [`File`] and [`Rank`]
+    #[inline]
     pub const fn build(file: File, rank: Rank) -> Self {
         let i = file.as_usize() + (rank.as_usize() << 3);
         Self(i as u8)
     }
 
-    #[inline(always)]
+    /// Unwrap the [`Square`] to its inner `u8`
+    #[inline]
     pub const fn as_u8(self) -> u8 {
         self.0
     }
-    #[inline(always)]
+    /// Unwrap the [`Square`] to its inner `u8` and convert to a `usize`
+    #[inline]
     pub const fn as_usize(self) -> usize {
         self.0 as usize
     }
 
-    #[inline(always)]
+    /// Get the [`File`] a [`Square`] lands on
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the square is invalid
+    #[inline]
     pub const fn file(self) -> File {
         debug_assert!(self.is_ok());
         unsafe { std::mem::transmute(self.0 & 7) }
     }
 
-    #[inline(always)]
+    /// Get the [`Rank`] a [`Square`] lands on
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the square is invalid
+    #[inline]
     pub const fn rank(self) -> Rank {
         debug_assert!(self.is_ok());
         unsafe { std::mem::transmute(self.0 >> 3) }
     }
 
-    #[inline(always)]
+    /// Get the [`Square`] relative to the viewer. This means that
+    /// if `color` is [`Color::Black`], it will "flip" the rank
+    /// so that it is all from a standard reference point.
+    #[inline]
     pub const fn relative_to(self, color: Color) -> Self {
         Self(self.0 ^ (color.as_usize() as u8 * 56))
     }
 
+    /// Calculates the [`Square`] a certain offset away from `self`.
+    /// This may go off the board, and so is an `Option<Square>`
     pub const fn offset(self, os: i32) -> Option<Self> {
         let res = self.as_u8() as i32 + os;
         if res < 0 || res >= Self::COUNT as i32 {
@@ -60,29 +85,37 @@ impl Square {
         }
     }
 
-    #[inline(always)]
+    /// Checks whether a [`Square`] is valid.
+    #[inline]
     pub const fn is_ok(self) -> bool {
         self.0 < Self::COUNT as u8
     }
 
+    /// Checks whether two [`Square`]s are on a horizontal,
+    /// vertical or diagonal line
+    #[inline]
     pub fn in_line(self, other: Self) -> bool {
         if !(self.is_ok() && other.is_ok()) {
             return false;
         }
-        bitboard::line(self, other).gtz()
+        self.distance(other) <= 1
+            || (bitboard::line(self, other) ^ Bitboard::from([self, other])).gtz()
     }
 
-    #[inline(always)]
+    /// Checks whether three [`Square`]s are on the same line
+    #[inline]
     pub fn in_line2(self, other: Self, other2: Self) -> bool {
         bitboard::line(self, other) & other2 == other2.into()
     }
 
-    #[inline(always)]
+    /// Fetches the (precomputed) distance between two [`Square`]s
+    #[inline]
     pub fn distance(self, other: Self) -> i32 {
         unsafe { SQUARE_DIST[self.as_usize()][other.as_usize()] }
     }
 
-    #[inline(always)]
+    /// Converts a [`Square`] to a [`Bitboard`] with only the relevant bit set
+    #[inline]
     pub const fn to_bitboard(self) -> Bitboard {
         Bitboard::new(1 << self.0)
     }
@@ -102,6 +135,9 @@ impl std::ops::Add<ShiftDir> for Square {
     }
 }
 
+/// These associated constants are just named squares, corresponding to their
+/// standard names on the board.
+#[allow(missing_docs)] // Dear god I don't want to document 64 constants...
 impl Square {
     pub const A1: Self = Self(0);
     pub const B1: Self = Self(1);

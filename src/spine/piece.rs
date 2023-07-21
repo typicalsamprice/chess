@@ -2,7 +2,10 @@ use crate::prelude::Color;
 
 use std::fmt;
 
+/// An enum detailing the valid types of pieces one may
+/// have on a chessboard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[allow(missing_docs)]
 pub enum PieceType {
     Pawn,
     Knight,
@@ -12,6 +15,8 @@ pub enum PieceType {
     King,
 }
 
+/// A structure representing a piece on the board,
+/// containing both a type (queen, rook, etc.) and a color (black or white)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Piece {
     kind: PieceType,
