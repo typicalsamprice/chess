@@ -113,6 +113,7 @@ impl Board {
         rooks | bishops
     }
 
+    /// Check whether a [`Move`] is legal given a position.
     pub fn is_legal(&self, s: &State, mv: Move) -> bool {
         ret_false_if!(!self.is_pseudo_legal(s, mv));
 
@@ -151,17 +152,21 @@ impl Board {
 
         if (s.blockers(us) & f).gtz() {
             let pinners = s.pinners(them);
+            // Possible pinners, up to 2. This makes the iterator iterate less
+            // TODO: Is this worth? Perft. testing required
+            let pinners = bitboard::line(f, k) & pinners;
+
             let mut pinner = f;
-            for x in pinners {
-                if (bitboard::between::<false>(x, k) & f).gtz() {
-                    pinner = x;
+            for pin in pinners {
+                if (bitboard::between::<false>(pin, k) & f).gtz() {
+                    pinner = pin;
                     break;
                 }
             }
 
             debug_assert!(pinner != f);
-            // The pinned piece must move on the line
-            ret_false_if!(!(bitboard::between::<false>(pinner, k) & t).gtz());
+            // The pinned piece must move on the line, or take the piece
+            ret_false_if!(!(bitboard::between::<true>(k, pinner) & t).gtz());
         }
 
         if mv.flag() == MoveFlag::EnPassant {
@@ -323,6 +328,7 @@ impl Board {
         let mov = self
             .get_piece(f)
             .expect("Somehow tried to move nonexistent piece");
+        debug_assert_eq!(mov.color(), us);
 
         let cap = self.get_piece(t).map(|p| p.kind());
         let cap = if flag == MoveFlag::EnPassant {
@@ -359,8 +365,6 @@ impl Board {
 
             s.half_moves = 0;
         }
-
-        debug_assert_eq!(mov.color(), us);
 
         if flag == MoveFlag::Castle {
             debug_assert_eq!(mov.kind(), PieceType::King);
@@ -440,11 +444,19 @@ impl Board {
                 )
             })
             .expect("undo-move: could not find moved piece");
+
+        if let Some(_) = self.get_piece(f) {
+            println!("{self}");
+            println!("Move TU: {mv}");
+            panic!();
+        }
         debug_assert!(self.get_piece(f).is_none());
         debug_assert!(s.captured_piece != Some(PieceType::King));
 
-        let prev_mov = self.history.pop();
-        debug_assert_eq!(Some(mv), prev_mov);
+        if cfg!(debug_assertions) {
+            let prev_mov = self.history.pop();
+            assert_eq!(Some(mv), prev_mov);
+        }
 
         if flag == MoveFlag::Promotion {
             debug_assert!(t.rank() == Rank::Eight.relative_to(us));
@@ -461,7 +473,7 @@ impl Board {
             self.add_piece(f, mov);
             if let Some(pt) = s.captured_piece {
                 let csq = if flag == MoveFlag::EnPassant {
-                    debug_assert!(f.rank() == Rank::Six.relative_to(us));
+                    debug_assert!(f.rank() == Rank::Five.relative_to(us));
                     Square::build(t.file(), f.rank())
                 } else {
                     t

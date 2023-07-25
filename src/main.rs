@@ -8,11 +8,16 @@ fn main() {
     bitboard::initialize_bitboards();
 
     let mut state = State::new();
-    let mut _board = Board::new(Board::STARTPOS, &mut state).unwrap();
+    let mut board = Board::new(Board::STARTPOS, &mut state).unwrap();
 
-    let pin_test_fen = "rnbqkbnr/pppppppp/8/8/Q1P5/8/PP1PPPPP/RNB1KBNR b KQkq - 0 1";
-    let mut board = Board::new(pin_test_fen, &mut state).unwrap();
+    let moves = [
+        move_new!(Square::E2, Square::E3),
+        move_new!(Square::E7, Square::E6),
+        move_new!(Square::D2, Square::D4),
+        move_new!(Square::F8, Square::B4),
+    ];
+    board.apply_moves(&mut state, &moves).unwrap();
     println!("{board}");
-    let m = move_new!(Square::D7, Square::D6);
-    board.do_move(&mut state, m).unwrap();
+
+    perft::perft_on(&mut board, &mut state, 5 - moves.len());
 }

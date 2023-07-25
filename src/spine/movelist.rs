@@ -50,11 +50,11 @@ impl Movelist {
     /// Filter a `Movelist` with the given predicate `f`, where it takes both a [`Board`]
     /// and a [`State`] along with each move, and if `f(board, state, move)` returns false, the [`Move`] is then
     /// swapped out (with `swap_remove`)
-    pub fn retain<F>(&mut self, board: &Board, state: &State, f: F)
+    pub fn retain<F>(&mut self, f: F)
     where
-        F: Fn(&Board, &State, Move) -> bool,
+        F: Fn(&Move) -> bool,
     {
-        self.moves.retain(|&mov| f(board, state, mov));
+        self.moves.retain(f);
     }
 
     #[inline]

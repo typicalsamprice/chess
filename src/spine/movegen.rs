@@ -5,10 +5,14 @@ use crate::prelude::*;
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
 pub enum GenType {
+    /// Generate all legal moves in a position
     Legal,
+    /// Generate all (pseudo-legal) moves in a position
     #[default]
     All,
+    /// Generate only captures
     Captures,
+    /// Generate only moves that get the king out of check
     Evasions,
 }
 
@@ -71,8 +75,13 @@ fn generate_pawn_moves(
         return;
     }
 
-    let pawns_up_one = non_seventh_rank_pawns << up & targets & empty;
+    let pawns_up_one = non_seventh_rank_pawns << up & empty;
     let pawns_up_two = (pawns_up_one & Rank::Three.relative_to(us)) << up & targets & empty;
+    // We shadow this one so that we don't wipe any potential two-rank moves
+    // that block a check.
+    //
+    // See: 1. c2c3 d7d6 2. d1a4 (b7b5 missed as response)
+    let pawns_up_one = pawns_up_one & targets;
 
     for pawn in pawns_up_one {
         list.push_back(move_new!(pawn + down, pawn));
@@ -86,7 +95,7 @@ fn generate_piece_moves(
     list: &mut Movelist,
     board: &Board,
     _state: &State,
-    _gen: GenType,
+    gen: GenType,
     targets: Bitboard,
 ) {
     let us = board.to_move();
@@ -118,10 +127,15 @@ fn generate_piece_moves(
         }
     }
 
+    // We only care about using a "real" targets mask for king moves
+    // when the goal is to generate captures
+    let targets = if gen == Evasions { Bitboard::MAX } else { targets };
     let katts = piece_attacks::king_attacks(king) & targets;
     for att in katts {
         list.push_back(move_new!(king, att));
     }
+
+    if gen == Captures { return; }
 
     let rights = CastleRights::rights_for(us);
     for right in rights {
@@ -152,81 +166,18 @@ pub fn generate_legal(board: &Board, state: &State) -> Movelist {
     generate_pawn_moves(&mut ml, board, state, gen, targets);
     generate_piece_moves(&mut ml, board, state, gen, targets);
 
-    let mut i = 0;
-    let mut max_excl = ml.len();
-    'outer: loop {
-        if i == max_excl {
-            break;
-        }
-        let m = ml.get(i).expect("Iterating over an invalid Movelist");
+    ml.retain(|&m| {
         let f = m.from_square();
-        let t = m.to_square();
+        let us = board.to_move();
+        let pinned = state.blockers(us);
+        let k = board.king(us);
 
-        let mov = board.get_piece(f).expect("Generated move without piece");
-        let movt = mov.kind();
-
-        if (state.blockers(us) & f).gtz() || movt == King {
-            if movt == King {
-                let squares = bitboard::between::<true>(f, t);
-                if ((squares ^ t) & board.all()).gtz() {
-                    max_excl -= 1;
-                    let _ = ml.swap_remove(i);
-                    continue 'outer;
-                }
-                for x in squares {
-                    if (board.attacks_to_bits(x, board.all() ^ f) & board.color(!us)).gtz() {
-                        max_excl -= 1;
-                        let _ = ml.swap_remove(i);
-                        continue 'outer;
-                    }
-                }
-
-                if m.flag() == MoveFlag::Castle {
-                    let mut rook_from = CastleRights::rights_for(us)
-                        .iter()
-                        .map(|ct| {
-                            let (crf, crt) = state
-                                .castle_rights()
-                                .get(*ct)
-                                .expect("Generated invalid castle move");
-                            if crf == f && crt == t {
-                                let bt = bitboard::between::<true>(f, t);
-                                let rooks = bt & board.spec(us, Rook);
-                                debug_assert!(rooks.popcount() == 1);
-                                rooks.lsb()
-                            } else {
-                                Bitboard::ZERO.lsb()
-                            } // An inherently non-OK Square
-                        })
-                        .collect::<Vec<Square>>();
-                    rook_from.retain(|&s| s.is_ok());
-                    let rook_from = *rook_from.first().expect("Generated invalid castle move");
-                    if (board.attacks_to_bits(t, board.all() ^ rook_from) & board.color(!us)).gtz()
-                    {
-                        max_excl -= 1;
-                        let _ = ml.swap_remove(i);
-                        continue 'outer;
-                    }
-                }
-            } else {
-                if state.checkers().more_than_one() {
-                    max_excl -= 1;
-                    let _ = ml.swap_remove(i);
-                    continue 'outer;
-                }
-
-                let pnr = state.pinners(!us).lsb();
-                let kng = board.king(us);
-                if !pnr.in_line2(kng, t) {
-                    max_excl -= 1;
-                    let _ = ml.swap_remove(i);
-                    continue 'outer;
-                }
-            }
+        if !((pinned & f).gtz() || f == k || m.flag() == MoveFlag::EnPassant) {
+            return true;
         }
 
-        i += 1;
-    }
+        board.is_legal(state, m)
+    });
 
     ml
 }

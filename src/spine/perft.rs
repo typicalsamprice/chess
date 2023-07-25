@@ -28,7 +28,7 @@ fn perft__<const ROOT: bool>(board: &mut Board, state: &mut State, depth: usize)
             cur = 1;
             nodes += 1;
         } else {
-            board.do_move(state, m);
+            board.do_move(state, m).unwrap();
             cur = if leaf {
                 movegen::generate_legal(board, state).len()
             } else {
@@ -47,7 +47,7 @@ fn perft__<const ROOT: bool>(board: &mut Board, state: &mut State, depth: usize)
 }
 
 #[cfg(test)]
-mod tests {
+mod perft_starting_position_tests {
     use std::sync::Once;
 
     use super::perft;
@@ -60,27 +60,81 @@ mod tests {
         INIT.call_once(|| bb_init())
     }
 
+    mod shallow {
+        use super::{init, perft};
+
+        #[test]
+        fn depth_one() {
+            init();
+            assert_eq!(20, perft(1));
+        }
+
+        #[test]
+        fn depth_two() {
+            init();
+            assert_eq!(400, perft(2));
+        }
+
+        #[test]
+        fn depth_three() {
+            init();
+            assert_eq!(8902, perft(3));
+        }
+
+        #[test]
+        fn depth_four() {
+            init();
+            assert_eq!(197_281, perft(4));
+        }
+    }
+
+    mod deepish {
+        use super::{init, perft};
+
+        #[test]
+        fn depth_five() {
+            init();
+            assert_eq!(4_865_609, perft(5));
+        }
+
+        #[test]
+        fn depth_six() {
+            init();
+            assert_eq!(119_060_324, perft(6));
+        }
+    }
+
+    #[test]
+    #[ignore = "Too long"]
+    fn depth_seven() {
+        init();
+        assert_eq!(3_195_901_860, perft(7));
+    }
+}
+
+#[cfg(test)]
+mod perft_kiwipete {
+    use std::sync::Once;
+
+    use crate::bitboard::initialize_bitboards as bb_init;
+
+    static INIT: Once = Once::new();
+
+    static KIWI_FEN: &str = todo!();
+
+    fn init() {
+        // Just make sure this happens ONE TIME. AUGH.
+        INIT.call_once(|| bb_init())
+    }
+
     #[test]
     fn depth_one() {
-        init();
-        assert_eq!(20, perft(1));
-    }
+        use super::perft_on;
+        use crate::prelude::*;
 
-    #[test]
-    fn depth_two() {
         init();
-        assert_eq!(400, perft(2));
-    }
-
-    #[test]
-    fn depth_three() {
-        init();
-        assert_eq!(8902, perft(3));
-    }
-
-    #[test]
-    fn depth_four() {
-        init();
-        assert_eq!(197_281, perft(4));
+        let mut s = State::new();
+        let mut b = Board::new(KIWI_FEN, &mut s).unwrap();
+        assert_eq!(perft_on(&mut b, &mut s, 1), 48);
     }
 }
