@@ -113,6 +113,30 @@ impl Board {
         rooks | bishops
     }
 
+    pub fn unblocked_castle(&self, s: &State, ct: CastleType) -> bool {
+        let Some((from, to)) = s.castle_rights().get(ct) else {
+            return false;
+        };
+        if from != self.king(self.to_move) {
+            return false;
+        }
+
+        let (low_possible, high_possible) = Bitboard::low_high(from)
+            & self.spec(self.to_move, PieceType::Rook)
+            & Bitboard::from(from.rank());
+        let rook = if from > to {
+            high_possible
+        } else {
+            low_possible
+        }
+        .lsb();
+
+        let betw_rook = bitboard::between::<false>(from, rook);
+        ret_false_if!((betw_rook & self.all()).gtz());
+
+        true
+    }
+
     /// Check whether a [`Move`] is legal given a position.
     pub fn is_legal(&self, s: &State, mv: Move) -> bool {
         ret_false_if!(!self.is_pseudo_legal(s, mv));

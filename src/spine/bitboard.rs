@@ -167,6 +167,14 @@ impl Bitboard {
     {
         self & !arg.into()
     }
+
+    #[inline]
+    pub fn low_high(s: Square) -> (Self, Self) {
+        let i = s.as_u8();
+        let low = (Self(1) << i).as_u64() - 1;
+        let high = !Self(1) << i;
+        (Self(low), high)
+    }
 }
 
 impl ops::Not for Bitboard {
@@ -319,6 +327,13 @@ impl From<File> for Bitboard {
 impl From<Rank> for Bitboard {
     fn from(r: Rank) -> Self {
         Self(0xff_u64 << (8 * r.as_usize()))
+    }
+}
+
+impl ops::BitAnd<Bitboard> for (Bitboard, Bitboard) {
+    type Output = Self;
+    fn bitand(self, m: Bitboard) -> Self::Output {
+        (self.0 & m, self.1 & m)
     }
 }
 

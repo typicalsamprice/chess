@@ -1,27 +1,24 @@
 use crate::bitboard;
 use crate::macros::move_new;
-use crate::piece_attacks;
+use crate::piece_attacks::{self, pawn_attacks_by_board};
+use crate::piece_attacks::{king_attacks, pawn_attacks};
 use crate::prelude::*;
 
-#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+use PieceType::*;
+use ShiftDir::*;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GenType {
-    /// Generate all legal moves in a position
-    Legal,
-    /// Generate all (pseudo-legal) moves in a position
-    #[default]
     All,
-    /// Generate only captures
+    Legal,
     Captures,
-    /// Generate only moves that get the king out of check
     Evasions,
 }
 
-use GenType::*;
-use PieceType::*;
-
+#[inline]
 fn generate_pawn_promotions(list: &mut Movelist, from: Square, to: Square) {
-    for pt in [Bishop, Rook, Knight, Queen] {
-        list.push_back(Move::new(from, to, MoveFlag::Promotion, pt));
+    for pt in [Knight, Bishop, Rook, Queen] {
+        list.push_back(move_new!(from, to, MoveFlag::Promotion, pt));
     }
 }
 
@@ -29,155 +26,97 @@ fn generate_pawn_moves(
     list: &mut Movelist,
     board: &Board,
     state: &State,
-    gen: GenType,
     targets: Bitboard,
+    gen: GenType,
 ) {
     let us = board.to_move();
+    let them = !us;
     let pawns = board.spec(us, Pawn);
+    let seventh_rank = pawns & Rank::Seven.relative_to(us);
+    let rest = pawns ^ seventh_rank;
 
-    let enemies = board.color(!us);
+    let enemies = board.color(them);
     let empty = !board.all();
 
-    let up = ShiftDir::Forward(us);
-    let down = ShiftDir::Backward(us);
+    for p in seventh_rank {
+        let attacks = pawn_attacks(p, us) & enemies & targets;
+        let push = Bitboard::from(p) << Forward(us) & empty & targets;
 
-    let seventh_rank_pawns = pawns & Rank::Seven.relative_to(us);
-    let non_seventh_rank_pawns = pawns ^ seventh_rank_pawns;
+        for a in attacks {
+            generate_pawn_promotions(list, p, a);
+        }
+        for x in push {
+            generate_pawn_promotions(list, p, x);
+        }
+    }
 
-    for pawn in seventh_rank_pawns {
-        let promo_forward = (Bitboard::from(pawn) << up) & targets;
-        let attacks = piece_attacks::pawn_attacks(pawn, us) & targets;
+    let push_once = rest << Forward(us) & empty;
+    let push_twice = (push_once & Rank::Three.relative_to(us)) << Forward(us) & empty & targets;
+    // INFO: The reason this has to be shadowed is so that
+    // the movegen doesn't stop double-pushes from being used
+    // to block checks.
+    let push_once = push_once & targets;
 
-        if gen != Captures {
-            if (targets & promo_forward).gtz() {
-                generate_pawn_promotions(list, pawn, promo_forward.lsb());
+    for x in push_once {
+        list.push_back(move_new!(x, x + Backward(us)));
+    }
+    for x in push_twice {
+        list.push_back(move_new!(x, x + Backward(us) + Backward(us)));
+    }
+
+    let t = targets & (enemies | state.en_passant());
+    let rightup = (rest << Forward(us) << 1).and_not(File::A) & t;
+    let leftup = (rest << Forward(us) >> 1).and_not(File::H) & t;
+    for x in rightup {
+        let orig = (x + Backward(us)).offset(-1).unwrap();
+        if Some(x) == state.en_passant() {
+            list.push_back(move_new!(orig, x, MoveFlag::EnPassant));
+        } else {
+            list.push_back(move_new!(orig, x));
+        }
+    }
+    for x in leftup {
+        let orig = (x + Backward(us)).offset(1).unwrap();
+        if Some(x) == state.en_passant() {
+            list.push_back(move_new!(orig, x, MoveFlag::EnPassant));
+        } else {
+            list.push_back(move_new!(orig, x));
+        }
+    }
+}
+
+fn generate_king_moves(
+    list: &mut Movelist,
+    board: &Board,
+    state: &State,
+    targets: Bitboard,
+    gen: GenType,
+) {
+    let us = board.to_move();
+    let king = board.king(us);
+
+    let basic_moves = king_attacks(king) & targets;
+    for x in basic_moves {
+        list.push_back(move_new!(king, x));
+    }
+    let castles = CastleRights::rights_for(us);
+    for ct in castles {
+        if state.castle_rights().has_right(ct) {
+            if board.unblocked_castle(state, ct) {
+                // Safety: We can unwrap() here because `unblocked_castle` would
+                // return false if the variant was `None`.
+                let (_, to) = state.castle_rights().get(ct).unwrap();
+                list.push_back(move_new!(king, to, MoveFlag::Castle));
             }
         }
-
-        for attack in attacks {
-            generate_pawn_promotions(list, pawn, attack);
-        }
-    }
-
-    for pawn in non_seventh_rank_pawns {
-        let atts = piece_attacks::pawn_attacks(pawn, us) & targets & (enemies | state.en_passant());
-        for att in atts {
-            let mf = if Some(att) == state.en_passant() {
-                MoveFlag::EnPassant
-            } else {
-                MoveFlag::Normal
-            };
-            list.push_back(move_new!(pawn, att, mf));
-        }
-    }
-
-    if gen == Captures {
-        return;
-    }
-
-    let pawns_up_one = non_seventh_rank_pawns << up & empty;
-    let pawns_up_two = (pawns_up_one & Rank::Three.relative_to(us)) << up & targets & empty;
-    // We shadow this one so that we don't wipe any potential two-rank moves
-    // that block a check.
-    //
-    // See: 1. c2c3 d7d6 2. d1a4 (b7b5 missed as response)
-    let pawns_up_one = pawns_up_one & targets;
-
-    for pawn in pawns_up_one {
-        list.push_back(move_new!(pawn + down, pawn));
-    }
-    for pawn in pawns_up_two {
-        list.push_back(move_new!(pawn + down + down, pawn));
     }
 }
 
 fn generate_piece_moves(
     list: &mut Movelist,
     board: &Board,
-    _state: &State,
-    gen: GenType,
+    state: &State,
     targets: Bitboard,
+    gen: GenType,
 ) {
-    let us = board.to_move();
-    let knights = board.spec(us, Knight);
-    let bishops_queens = board.piece_type2(Bishop, Queen) & board.color(us);
-    let rooks_queens = board.piece_type2(Rook, Queen) & board.color(us);
-    let king = board.king(us);
-
-    let pcs = board.all();
-
-    for knight in knights {
-        let atts = piece_attacks::knight_attacks(knight) & targets;
-        for att in atts {
-            list.push_back(move_new!(knight, att));
-        }
-    }
-
-    for bq in bishops_queens {
-        let atts = piece_attacks::bishop_attacks(bq, pcs) & targets;
-        for att in atts {
-            list.push_back(move_new!(bq, att));
-        }
-    }
-
-    for rq in rooks_queens {
-        let atts = piece_attacks::rook_attacks(rq, pcs) & targets;
-        for att in atts {
-            list.push_back(move_new!(rq, att));
-        }
-    }
-
-    // We only care about using a "real" targets mask for king moves
-    // when the goal is to generate captures
-    let targets = if gen == Evasions { Bitboard::MAX } else { targets };
-    let katts = piece_attacks::king_attacks(king) & targets;
-    for att in katts {
-        list.push_back(move_new!(king, att));
-    }
-
-    if gen == Captures { return; }
-
-    let rights = CastleRights::rights_for(us);
-    for right in rights {
-        if let Some((from, to)) = _state.castle_rights().get(right) {
-            if !board.pseudo_legal_castle(from, to) {
-                continue;
-            }
-            debug_assert!(from == king);
-            list.push_back(move_new!(from, to, MoveFlag::Castle));
-        }
-    }
-}
-
-pub fn generate_legal(board: &Board, state: &State) -> Movelist {
-    let us = board.to_move();
-    let gen = if state.checkers().gtz() {
-        Evasions
-    } else {
-        All
-    };
-    let targets = match gen {
-        Evasions => bitboard::between::<true>(board.king(us), state.checkers().lsb()),
-        All => !board.color(us),
-        _ => unreachable!(),
-    };
-    let mut ml = Movelist::new();
-
-    generate_pawn_moves(&mut ml, board, state, gen, targets);
-    generate_piece_moves(&mut ml, board, state, gen, targets);
-
-    ml.retain(|&m| {
-        let f = m.from_square();
-        let us = board.to_move();
-        let pinned = state.blockers(us);
-        let k = board.king(us);
-
-        if !((pinned & f).gtz() || f == k || m.flag() == MoveFlag::EnPassant) {
-            return true;
-        }
-
-        board.is_legal(state, m)
-    });
-
-    ml
 }
