@@ -46,68 +46,116 @@ fn perft__<const ROOT: bool>(board: &mut Board, state: &mut State, depth: usize)
     nodes
 }
 
-#[cfg(test)]
-mod perft_starting_position_tests {
-    use std::sync::Once;
+macro_rules! setup_perft {
+    ($expected:literal, $depth:literal) => {
+        setup_perft!($crate::prelude::Board::STARTPOS, $expected, $depth);
+    };
+    ($fen:expr, $expected:literal, $depth:literal) => {
+        let mut s = $crate::prelude::State::new();
+        let mut b = $crate::prelude::Board::new($fen, &mut s).unwrap();
+        assert_eq!($crate::perft::perft_on(&mut b, &mut s, $depth), $expected);
+    };
+}
 
-    use super::perft;
+#[cfg(test)]
+mod starting_position {
     use crate::bitboard::initialize_bitboards as bb_init;
+    use std::sync::Once;
 
     static INIT: Once = Once::new();
 
-    fn init() {
+    pub(super) fn init() {
         // Just make sure this happens ONE TIME. AUGH.
         INIT.call_once(|| bb_init())
     }
 
     mod shallow {
-        use super::{init, perft};
+        use super::init;
 
         #[test]
         fn depth_one() {
             init();
-            assert_eq!(20, perft(1));
+            setup_perft!(20, 1);
         }
 
         #[test]
         fn depth_two() {
             init();
-            assert_eq!(400, perft(2));
+            setup_perft!(400, 2);
         }
 
         #[test]
         fn depth_three() {
             init();
-            assert_eq!(8902, perft(3));
+            setup_perft!(8902, 3);
         }
 
         #[test]
         fn depth_four() {
             init();
-            assert_eq!(197_281, perft(4));
+            setup_perft!(197_281, 4);
         }
     }
 
     mod deepish {
-        use super::{init, perft};
+        use super::init;
 
         #[test]
         fn depth_five() {
             init();
-            assert_eq!(4_865_609, perft(5));
+            setup_perft!(4_865_609, 5);
         }
 
         #[test]
         fn depth_six() {
             init();
-            assert_eq!(119_060_324, perft(6));
+            setup_perft!(119_060_324, 6);
+        }
+
+        #[test]
+        #[ignore]
+        fn depth_seven() {
+            init();
+            setup_perft!(3_195_901_860, 7);
         }
     }
+}
 
-    #[test]
-    #[ignore = "Too long"]
-    fn depth_seven() {
-        init();
-        assert_eq!(3_195_901_860, perft(7));
+#[cfg(test)]
+mod kiwipete {
+    use super::starting_position::init;
+
+    mod shallow {
+        use super::init;
+        use crate::prelude::Board;
+
+        #[test]
+        fn depth_one() {
+            init();
+            setup_perft!(Board::KIWIPETE, 48, 1);
+        }
+        #[test]
+        fn depth_two() {
+            init();
+            setup_perft!(Board::KIWIPETE, 2039, 2);
+        }
+
+        #[test]
+        fn depth_three() {
+            init();
+            setup_perft!(Board::KIWIPETE, 97_862, 3);
+        }
+
+        #[test]
+        fn depth_four() {
+            init();
+            setup_perft!(Board::KIWIPETE, 4_085_603, 4);
+        }
+
+        #[test]
+        fn depth_five() {
+            init();
+            setup_perft!(Board::KIWIPETE, 193_690_690, 4);
+        }
     }
 }

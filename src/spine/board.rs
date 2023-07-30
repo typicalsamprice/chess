@@ -46,6 +46,8 @@ pub struct State {
 
 impl Board {
     pub const STARTPOS: &'static str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    pub const KIWIPETE: &'static str =
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -";
 
     #[inline(always)]
     pub const fn color(&self, color: Color) -> Bitboard {
@@ -169,8 +171,8 @@ impl Board {
         // King cannot walk into check
         if f == k {
             let rk = if mv.flag() == MoveFlag::Castle {
-                let mv_rook = bitboard::between::<true>(f, t) & self.spec(us, PieceType::Rook);
-                debug_assert_eq!(mv_rook.popcount(), 1);
+                // TODO: Allow C960 castling in the future.
+                let mv_rook = bitboard::between::<true>(f, t);
                 mv_rook
             } else {
                 Bitboard::ZERO

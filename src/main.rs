@@ -8,7 +8,7 @@ fn main() {
     bitboard::initialize_bitboards();
 
     let mut state = State::new();
-    let mut board = Board::new(Board::STARTPOS, &mut state).unwrap();
+    let mut board = Board::new(Board::KIWIPETE, &mut state).unwrap();
 
     let moves = [
         move_new!(Square::D2, Square::D4),
@@ -33,6 +33,6 @@ fn main() {
             .collect::<Vec<_>>()
             .join(" ")
     );
-    let u = perft::perft_on(&mut board, &mut state, 7 - moves.len());
+    let u = perft::perft_on(&mut board, &mut state, 1 - moves.len());
     println!("Nodes searched: {u}");
 }
