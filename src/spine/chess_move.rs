@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use std::fmt;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 /// A struct that holds the bit pattern for a chess move
 pub struct Move(u16);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,6 +107,19 @@ impl MoveFlag {
     #[inline]
     const fn as_u16(self) -> u16 {
         (self as u16) << 12
+    }
+}
+
+impl fmt::Debug for Move {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Move {{ from: {}, to: {}, flag: {:?}, promotion_type: {:?} }}",
+            self.from_square(),
+            self.to_square(),
+            self.flag(),
+            self.promotion_type()
+        )
     }
 }
 

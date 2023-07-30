@@ -172,7 +172,7 @@ impl Bitboard {
     pub fn low_high(s: Square) -> (Self, Self) {
         let i = s.as_u8();
         let low = (Self(1) << i).as_u64() - 1;
-        let high = !Self(1) << i;
+        let high = (!Self(1)) << i;
         (Self(low), high)
     }
 }

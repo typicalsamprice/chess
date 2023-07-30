@@ -117,6 +117,7 @@ impl Board {
         let Some((from, to)) = s.castle_rights().get(ct) else {
             return false;
         };
+
         if from != self.king(self.to_move) {
             return false;
         }
@@ -124,14 +125,17 @@ impl Board {
         let (low_possible, high_possible) = Bitboard::low_high(from)
             & self.spec(self.to_move, PieceType::Rook)
             & Bitboard::from(from.rank());
-        let rook = if from > to {
+        let mut rookb = if from < to {
             high_possible
         } else {
             low_possible
-        }
-        .lsb();
+        };
 
-        let betw_rook = bitboard::between::<false>(from, rook);
+        let Some(x) = rookb.next() else {
+            return false;
+        };
+
+        let betw_rook = bitboard::between::<false>(from, x);
         ret_false_if!((betw_rook & self.all()).gtz());
 
         true

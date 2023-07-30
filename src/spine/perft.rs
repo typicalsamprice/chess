@@ -111,30 +111,3 @@ mod perft_starting_position_tests {
         assert_eq!(3_195_901_860, perft(7));
     }
 }
-
-#[cfg(test)]
-mod perft_kiwipete {
-    use std::sync::Once;
-
-    use crate::bitboard::initialize_bitboards as bb_init;
-
-    static INIT: Once = Once::new();
-
-    static KIWI_FEN: &str = todo!();
-
-    fn init() {
-        // Just make sure this happens ONE TIME. AUGH.
-        INIT.call_once(|| bb_init())
-    }
-
-    #[test]
-    fn depth_one() {
-        use super::perft_on;
-        use crate::prelude::*;
-
-        init();
-        let mut s = State::new();
-        let mut b = Board::new(KIWI_FEN, &mut s).unwrap();
-        assert_eq!(perft_on(&mut b, &mut s, 1), 48);
-    }
-}

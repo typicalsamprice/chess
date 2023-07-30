@@ -114,9 +114,8 @@ impl Square {
         unsafe { SQUARE_DIST[self.as_usize()][other.as_usize()] }
     }
 
-    /// Converts a [`Square`] to a [`Bitboard`] with only the relevant bit set
     #[inline]
-    pub const fn to_bitboard(self) -> Bitboard {
+    pub(crate) const fn to_bitboard(self) -> Bitboard {
         Bitboard::new(1 << self.0)
     }
 }
@@ -138,6 +137,7 @@ impl std::ops::Add<ShiftDir> for Square {
 /// These associated constants are just named squares, corresponding to their
 /// standard names on the board.
 #[allow(missing_docs)] // Dear god I don't want to document 64 constants...
+#[doc(hidden)]
 impl Square {
     pub const A1: Self = Self(0);
     pub const B1: Self = Self(1);
@@ -212,5 +212,20 @@ impl fmt::Display for Square {
         let rc = ((self.0 >> 3) + b'1') as char;
 
         write!(f, "{fc}{rc}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use Color::*;
+    use ShiftDir::*;
+
+    #[test]
+    fn add_shiftdir() {
+        assert_eq!(Square::A1 + Forward(White), Square::A2);
+        assert_eq!(Square::A2 + Backward(White), Square::A1);
+        assert_eq!(Square::B4 + Forward(Black), Square::B3);
+        assert_eq!(Square::E4 + Backward(Black), Square::E5);
     }
 }

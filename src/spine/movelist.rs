@@ -8,7 +8,7 @@ pub struct Movelist {
 
 impl Movelist {
     /// The maximum moves in any (theoretical) position is ~220
-    pub const MAX_MOVES: usize = 256;
+    const MAX_MOVES: usize = 256;
 
     /// Create an empty `Movelist`
     #[inline]
@@ -24,15 +24,23 @@ impl Movelist {
     }
 
     #[inline]
-    pub fn get(&self, index: usize) -> Option<Move> {
-        self.moves.get(index).copied()
+    pub fn get(&self, index: usize) -> Option<&Move> {
+        self.moves.get(index)
     }
 
+    #[inline]
+    pub fn last(&self) -> Option<&Move> {
+        self.moves.last()
+    }
+
+    #[inline]
     pub fn push_back(&mut self, mv: Move) {
+        // This is just to make sure we aren't reallocating unnecessarily.
         debug_assert_ne!(self.len(), Self::MAX_MOVES);
         self.moves.push(mv);
     }
 
+    /// Get the Movelist as a slice of [`Move`]s
     #[inline]
     pub fn as_slice(&self) -> &[Move] {
         &self.moves

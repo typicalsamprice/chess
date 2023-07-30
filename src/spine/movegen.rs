@@ -1,6 +1,8 @@
 use crate::bitboard;
 use crate::macros::move_new;
-use crate::piece_attacks::{self, pawn_attacks_by_board};
+use crate::piece_attacks::{
+    self, bishop_attacks, knight_attacks, pawn_attacks_by_board, rook_attacks,
+};
 use crate::piece_attacks::{king_attacks, pawn_attacks};
 use crate::prelude::*;
 
@@ -27,7 +29,7 @@ fn generate_pawn_moves(
     board: &Board,
     state: &State,
     targets: Bitboard,
-    gen: GenType,
+    _gen: GenType,
 ) {
     let us = board.to_move();
     let them = !us;
@@ -58,10 +60,10 @@ fn generate_pawn_moves(
     let push_once = push_once & targets;
 
     for x in push_once {
-        list.push_back(move_new!(x, x + Backward(us)));
+        list.push_back(move_new!(x + Backward(us), x));
     }
     for x in push_twice {
-        list.push_back(move_new!(x, x + Backward(us) + Backward(us)));
+        list.push_back(move_new!(x + Backward(us) + Backward(us), x));
     }
 
     let t = targets & (enemies | state.en_passant());
@@ -89,16 +91,21 @@ fn generate_king_moves(
     list: &mut Movelist,
     board: &Board,
     state: &State,
-    targets: Bitboard,
+    _targets: Bitboard,
     gen: GenType,
 ) {
     let us = board.to_move();
     let king = board.king(us);
 
-    let basic_moves = king_attacks(king) & targets;
+    let basic_moves = king_attacks(king);
     for x in basic_moves {
         list.push_back(move_new!(king, x));
     }
+
+    if gen != GenType::All {
+        return;
+    }
+
     let castles = CastleRights::rights_for(us);
     for ct in castles {
         if state.castle_rights().has_right(ct) {
@@ -115,8 +122,76 @@ fn generate_king_moves(
 fn generate_piece_moves(
     list: &mut Movelist,
     board: &Board,
-    state: &State,
+    _state: &State,
     targets: Bitboard,
-    gen: GenType,
+    _gen: GenType,
 ) {
+    let us = board.to_move();
+
+    let knights = board.spec(us, Knight);
+    for knight in knights {
+        let atts = knight_attacks(knight) & targets;
+        for a in atts {
+            list.push_back(move_new!(knight, a));
+        }
+    }
+
+    let b_queens = board.piece_type2(Bishop, Queen) & board.color(us);
+    let r_queens = board.piece_type2(Rook, Queen) & board.color(us);
+
+    for bq in b_queens {
+        let attacks = bishop_attacks(bq, board.all()) & targets;
+        for a in attacks {
+            list.push_back(move_new!(bq, a));
+        }
+    }
+    for rq in r_queens {
+        let attacks = rook_attacks(rq, board.all()) & targets;
+        for a in attacks {
+            list.push_back(move_new!(rq, a));
+        }
+    }
+}
+
+/// Generates all legal moves in a position
+pub fn generate_legal(board: &Board, state: &State) -> Movelist {
+    let mut list = Movelist::new();
+
+    let us = board.to_move();
+    let king = board.king(us);
+    let targets = match state.checkers().popcount() {
+        1 => bitboard::between::<true>(king, state.checkers().lsb()),
+        0 => !board.color(us),
+        2 => Bitboard::ZERO, // We can only move the king!
+        _ => unreachable!(),
+    };
+
+    let gt = if state.checkers().gtz() {
+        GenType::Evasions
+    } else {
+        GenType::All
+    };
+
+    if targets.gtz() {
+        generate_pawn_moves(&mut list, board, state, targets, gt);
+    }
+
+    generate_king_moves(&mut list, board, state, targets, gt);
+
+    if targets.gtz() {
+        generate_piece_moves(&mut list, board, state, targets, gt);
+    }
+
+    list.retain(|&m| {
+        if m.from_square() == king
+            || (state.blockers(us) & m.from_square()).gtz()
+            || Some(m.from_square()) == state.en_passant()
+        {
+            board.is_legal(state, m)
+        } else {
+            true
+        }
+    });
+
+    list
 }
