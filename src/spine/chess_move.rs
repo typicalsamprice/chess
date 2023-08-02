@@ -26,10 +26,10 @@ impl Move {
 
     /// Create a new [`Move`] by passing in all the bits and pieces manually
     pub const fn new(from: Square, to: Square, flag: MoveFlag, promotion_type: PieceType) -> Self {
-        let frombits = from.as_u8() as u16;
-        let tobits = (to.as_u8() as u16) << 6;
+        let frombits = from.to_u8() as u16;
+        let tobits = (to.to_u8() as u16) << 6;
         let flagbits = flag.as_u16();
-        let promo_bits = (promotion_type.as_usize() as u16) << 14;
+        let promo_bits = (promotion_type.to_usize() as u16) << 14;
 
         Self(frombits | tobits | flagbits | promo_bits)
     }
@@ -125,6 +125,15 @@ impl fmt::Debug for Move {
 
 impl fmt::Display for Move {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}{}", self.from_square(), self.to_square())
+        let map_promo = |t: PieceType| {
+            match t {
+                PieceType::Pawn | PieceType::King => "",
+                PieceType::Knight => "=n",
+                PieceType::Bishop => "=b",
+                PieceType::Rook => "=r",
+                PieceType::Queen => "=q",
+            }
+        };
+        write!(f, "{}{}{}", self.from_square(), self.to_square(), map_promo(self.promotion_type()))
     }
 }

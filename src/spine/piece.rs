@@ -27,7 +27,7 @@ impl PieceType {
     pub const COUNT: usize = 6;
 
     #[inline(always)]
-    pub const fn as_usize(self) -> usize {
+    pub const fn to_usize(self) -> usize {
         self as usize
     }
 }
@@ -39,8 +39,8 @@ impl Piece {
     }
 
     #[inline(always)]
-    pub const fn as_usize(&self) -> usize {
-        self.color.as_usize() * 8 + self.kind.as_usize()
+    pub const fn to_usize(&self) -> usize {
+        self.color.to_usize() * 8 + self.kind.to_usize()
     }
 
     #[inline(always)]
@@ -60,7 +60,7 @@ impl Piece {
 impl fmt::Display for Piece {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let pcs = b"pnbrqk";
-        let ch = pcs[self.kind().as_usize()] as char;
+        let ch = pcs[self.kind().to_usize()] as char;
         let c = if self.color() == Color::White {
             ch.to_ascii_uppercase()
         } else {

@@ -14,7 +14,7 @@ pub enum Rank {
 
 impl Rank {
     #[inline]
-    pub const fn as_usize(self) -> usize {
+    pub const fn to_usize(self) -> usize {
         self as usize
     }
 

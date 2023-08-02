@@ -16,11 +16,11 @@ pub fn pawn_attacks_by_board(pawns: Bitboard, color: Color) -> Bitboard {
 }
 pub fn pawn_attacks(square: Square, color: Color) -> Bitboard {
     debug_assert!(square.is_ok());
-    unsafe { PAWN_ATTACKS[color.as_usize()][square.as_usize()] }
+    unsafe { PAWN_ATTACKS[color.to_usize()][square.to_usize()] }
 }
 
 pub fn king_attacks(square: Square) -> Bitboard {
-    unsafe { PSEUDO_ATTACKS[1][square.as_usize()] }
+    unsafe { PSEUDO_ATTACKS[1][square.to_usize()] }
 }
 pub(crate) fn king_attacks_comp(square: Square) -> Bitboard {
     let mut rv = Bitboard::ZERO;
@@ -36,13 +36,12 @@ pub(crate) fn king_attacks_comp(square: Square) -> Bitboard {
 }
 
 pub fn knight_attacks(square: Square) -> Bitboard {
-    unsafe { PSEUDO_ATTACKS[0][square.as_usize()] }
+    debug_assert!(square.is_ok());
+    unsafe { PSEUDO_ATTACKS[0][square.to_usize()] }
 }
 
 pub fn knight_attacks_by_board(knights: Bitboard) -> Bitboard {
-    let mut rv = Bitboard::ZERO;
-
-    rv |= ((knights >> 15) | (knights << 17)) & !Bitboard::from(File::A);
+    let mut rv = ((knights >> 15) | (knights << 17)) & !Bitboard::from(File::A);
     rv |= ((knights << 15) | (knights >> 17)) & !Bitboard::from(File::H);
     rv |= ((knights << 10) | (knights >> 6)) & !(Bitboard::from(File::A) | Bitboard::from(File::B));
     rv |= ((knights >> 10) | (knights << 6)) & !(Bitboard::from(File::G) | Bitboard::from(File::H));

@@ -6,6 +6,10 @@ use std::fmt;
 use std::mem::transmute;
 use std::ops;
 
+use bitintr::Andn;
+use bitintr::Blsi;
+use bitintr::{Blsmsk, Bzhi, Popcnt, Tzcnt};
+
 pub(crate) static mut SQUARE_DIST: [[i32; 64]; 64] = [[0; 64]; 64];
 pub(crate) static mut PAWN_ATTACKS: [[Bitboard; 64]; 2] = [[Bitboard::ZERO; 64]; 2];
 pub(crate) static mut PSEUDO_ATTACKS: [[Bitboard; 64]; 2] = [[Bitboard::ZERO; 64]; 2];
@@ -26,7 +30,7 @@ pub enum ShiftDir {
 
 pub fn between<const KEEP_END: bool>(from: Square, to: Square) -> Bitboard {
     debug_assert!(from.is_ok() && to.is_ok());
-    let k = unsafe { BETWEEN_BB[from.as_usize()][to.as_usize()] };
+    let k = unsafe { BETWEEN_BB[from.to_usize()][to.to_usize()] };
     if !KEEP_END {
         // Remove the end bit
         k ^ to
@@ -36,7 +40,7 @@ pub fn between<const KEEP_END: bool>(from: Square, to: Square) -> Bitboard {
 }
 pub fn line(a: Square, b: Square) -> Bitboard {
     debug_assert!(a.is_ok() && b.is_ok());
-    unsafe { LINE_BB[a.as_usize()][b.as_usize()] }
+    unsafe { LINE_BB[a.to_usize()][b.to_usize()] }
 }
 
 pub fn initialize_bitboards() {
@@ -45,10 +49,10 @@ pub fn initialize_bitboards() {
             let s = Square::new(i);
             let sj = Square::new(j);
 
-            let r1 = s.rank().as_usize();
-            let r2 = sj.rank().as_usize();
-            let f1 = s.file().as_usize();
-            let f2 = sj.file().as_usize();
+            let r1 = s.rank().to_usize();
+            let r2 = sj.rank().to_usize();
+            let f1 = s.file().to_usize();
+            let f2 = sj.file().to_usize();
 
             let rd = r1.abs_diff(r2);
             let fd = f1.abs_diff(f2);
@@ -65,9 +69,9 @@ pub fn initialize_bitboards() {
         let s = Square::new(i);
 
         unsafe {
-            PAWN_ATTACKS[Color::White.as_usize()][i as usize] =
+            PAWN_ATTACKS[Color::White.to_usize()][i as usize] =
                 pawn_attacks_by_board(s.into(), Color::White);
-            PAWN_ATTACKS[Color::Black.as_usize()][i as usize] =
+            PAWN_ATTACKS[Color::Black.to_usize()][i as usize] =
                 pawn_attacks_by_board(s.into(), Color::Black);
             PSEUDO_ATTACKS[0][i as usize] = knight_attacks_by_board(s.into());
             PSEUDO_ATTACKS[1][i as usize] = king_attacks_comp(s);
@@ -113,18 +117,18 @@ impl Bitboard {
     }
 
     #[inline(always)]
-    pub const fn as_u64(self) -> u64 {
+    pub const fn inner(self) -> u64 {
         self.0
     }
 
     #[inline(always)]
     pub const fn gtz(self) -> bool {
-        self.0 > 0
+        self.0 != 0
     }
 
     #[inline(always)]
-    pub const fn popcount(self) -> u32 {
-        self.0.count_ones()
+    pub fn popcount(self) -> u32 {
+        self.0.popcnt() as u32
     }
 
     #[inline(always)]
@@ -147,14 +151,15 @@ impl Bitboard {
     }
 
     #[inline(always)]
-    pub const fn lsb(self) -> Square {
-        Square::new(self.0.trailing_zeros() as u8)
+    pub fn lsb(self) -> Square {
+        let x = self.0.tzcnt();
+        Square::new(x as u8)
     }
     #[inline]
     pub fn pop_lsb(&mut self) -> Option<Square> {
         if self.gtz() {
             let s = self.lsb();
-            self.0 &= self.0 - 1;
+            *self &= self.blsi();
             return Some(s);
         }
         return None;
@@ -165,15 +170,37 @@ impl Bitboard {
     where
         T: Into<Self>,
     {
-        self & !arg.into()
+        arg.into().andn(self)
     }
 
     #[inline]
     pub fn low_high(s: Square) -> (Self, Self) {
-        let i = s.as_u8();
-        let low = (Self(1) << i).as_u64() - 1;
-        let high = (!Self(1)) << i;
-        (Self(low), high)
+        let k = Self::from(s);
+        // TODO: Is this faster than the manual one?
+        let low = k.blsmsk();
+        (low, Bitboard::MAX ^ low ^ s)
+    }
+}
+
+// The bitintr stuff for Bitboards
+impl Bzhi for Bitboard {
+    fn bzhi(self, bit_position: u32) -> Self {
+        Self(self.0.bzhi(bit_position))
+    }
+}
+impl Blsmsk for Bitboard {
+    fn blsmsk(self) -> Self {
+        Self(self.0.blsmsk())
+    }
+}
+impl Blsi for Bitboard {
+    fn blsi(self) -> Self {
+        Self(self.0.blsi())
+    }
+}
+impl Andn for Bitboard {
+    fn andn(self, y: Self) -> Self {
+        Self(self.0.andn(y.0))
     }
 }
 
@@ -181,6 +208,12 @@ impl ops::Not for Bitboard {
     type Output = Self;
     fn not(self) -> Self {
         Self(!self.0)
+    }
+}
+impl ops::Neg for Bitboard {
+    type Output = Self;
+    fn neg(self) -> Self {
+        Self(self.0.wrapping_neg())
     }
 }
 
@@ -294,7 +327,7 @@ impl<const N: usize> From<[Square; N]> for Bitboard {
         debug_assert!(N > 0);
         let mut s = 0;
         for i in 0..N {
-            s |= 1 << sqs[i].as_u8();
+            s |= 1 << sqs[i].to_u8();
         }
         Self(s)
     }
@@ -321,12 +354,12 @@ impl From<Option<Square>> for Bitboard {
 
 impl From<File> for Bitboard {
     fn from(f: File) -> Self {
-        Self(0x0101010101010101_u64 << f.as_usize())
+        Self(0x0101010101010101_u64 << f.to_usize())
     }
 }
 impl From<Rank> for Bitboard {
     fn from(r: Rank) -> Self {
-        Self(0xff_u64 << (8 * r.as_usize()))
+        Self(0xff_u64 << (8 * r.to_usize()))
     }
 }
 

@@ -29,18 +29,18 @@ impl Square {
     /// Create a new [`Square`] from its constituent [`File`] and [`Rank`]
     #[inline]
     pub const fn build(file: File, rank: Rank) -> Self {
-        let i = file.as_usize() + (rank.as_usize() << 3);
+        let i = file.to_usize() + (rank.to_usize() << 3);
         Self(i as u8)
     }
 
     /// Unwrap the [`Square`] to its inner `u8`
     #[inline]
-    pub const fn as_u8(self) -> u8 {
+    pub const fn to_u8(self) -> u8 {
         self.0
     }
     /// Unwrap the [`Square`] to its inner `u8` and convert to a `usize`
     #[inline]
-    pub const fn as_usize(self) -> usize {
+    pub const fn to_usize(self) -> usize {
         self.0 as usize
     }
 
@@ -71,13 +71,13 @@ impl Square {
     /// so that it is all from a standard reference point.
     #[inline]
     pub const fn relative_to(self, color: Color) -> Self {
-        Self(self.0 ^ (color.as_usize() as u8 * 56))
+        Self(self.0 ^ (color.to_usize() as u8 * 56))
     }
 
     /// Calculates the [`Square`] a certain offset away from `self`.
     /// This may go off the board, and so is an `Option<Square>`
     pub const fn offset(self, os: i32) -> Option<Self> {
-        let res = self.as_u8() as i32 + os;
+        let res = self.to_u8() as i32 + os;
         if res < 0 || res >= Self::COUNT as i32 {
             None
         } else {
@@ -111,7 +111,7 @@ impl Square {
     /// Fetches the (precomputed) distance between two [`Square`]s
     #[inline]
     pub fn distance(self, other: Self) -> i32 {
-        unsafe { SQUARE_DIST[self.as_usize()][other.as_usize()] }
+        unsafe { SQUARE_DIST[self.to_usize()][other.to_usize()] }
     }
 
     #[inline]

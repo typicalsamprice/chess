@@ -27,14 +27,14 @@ impl Magic {
 
     #[cfg(feature = "pext")]
     pub fn offset(&self, occupied: Bitboard) -> usize {
-        pext_u64(occupied.as_u64(), self.mask.as_u64()) as usize
+        pext_u64(occupied.inner(), self.mask.inner()) as usize
     }
 
     #[cfg(not(feature = "pext"))]
     pub fn offset(&self, occupied: Bitboard) -> usize {
         let masked = occupied & self.mask;
         let v = masked * self.magic;
-        v.as_u64() as usize >> self.shift
+        v.inner() as usize >> self.shift
     }
 }
 
@@ -83,9 +83,9 @@ unsafe fn init_magics(is_rook: bool) {
         let ptr = if s == Square::A1 {
             0
         } else {
-            magics[s.as_usize() - 1].ptr
+            magics[s.to_usize() - 1].ptr
         };
-        let m = &mut magics[s.as_usize()];
+        let m = &mut magics[s.to_usize()];
         m.mask = sliding_attack(s, is_rook, Bitboard::ZERO) & !edges;
         m.shift = 64 - m.mask.popcount();
         m.ptr = ptr + size;
@@ -98,7 +98,7 @@ unsafe fn init_magics(is_rook: bool) {
             atts[size] = sliding_attack(s, is_rook, b);
 
             if cfg!(feature = "pext") {
-                table[m.ptr + pext_u64(b.as_u64(), m.mask.as_u64()) as usize] = atts[size];
+                table[m.ptr + pext_u64(b.inner(), m.mask.inner()) as usize] = atts[size];
             }
 
             size += 1;
@@ -111,7 +111,7 @@ unsafe fn init_magics(is_rook: bool) {
             continue;
         }
 
-        let mut prng = PRNG::new(SEEDS[s.rank().as_usize()]);
+        let mut prng = PRNG::new(SEEDS[s.rank().to_usize()]);
 
         let mut i = 0;
         while i < size {
@@ -189,7 +189,7 @@ pub(crate) fn magic_lookup(is_rook: bool, square: Square, occupied: Bitboard) ->
             BISHOP_MAGICS
         }
     };
-    let m = magics[square.as_usize()];
+    let m = magics[square.to_usize()];
 
     let i = m.offset(occupied);
     m.attacks[i]

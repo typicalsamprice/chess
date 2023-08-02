@@ -20,7 +20,7 @@ pub(crate) fn pext_u64(a: u64, b: u64) -> u64 {
 }
 
 #[cfg(not(feature = "pext"))]
-pub(crate) fn pext_u64(_: u64, _: u64) -> u64 {
+pub(crate) const fn pext_u64(_: u64, _: u64) -> u64 {
     0
 }
 

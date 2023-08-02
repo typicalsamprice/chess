@@ -14,7 +14,7 @@ macro_rules! ret_false_if {
     };
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Board {
     color_bb: [Bitboard; Color::COUNT],
     piece_bb: [Bitboard; PieceType::COUNT],
@@ -28,7 +28,14 @@ pub struct Board {
     is960: bool,
 }
 
-#[derive(Clone, Copy)]
+// Safety: State can be send because the NonNull<State> inside of it
+// is never aliased and impossible to access for others.
+//
+// This is important because of multithreading in the future, without weird
+// (de)serializing.
+unsafe impl Send for State {}
+
+#[derive(Clone, Copy, Debug)]
 pub struct State {
     castle_rights: CastleRights,
     en_passant: Option<Square>,
@@ -51,7 +58,7 @@ impl Board {
 
     #[inline(always)]
     pub const fn color(&self, color: Color) -> Bitboard {
-        self.color_bb[color.as_usize()]
+        self.color_bb[color.to_usize()]
     }
     #[inline(always)]
     pub const fn all(&self) -> Bitboard {
@@ -59,7 +66,7 @@ impl Board {
     }
     #[inline(always)]
     pub const fn piece_type(&self, pt: PieceType) -> Bitboard {
-        self.piece_bb[pt.as_usize()]
+        self.piece_bb[pt.to_usize()]
     }
     #[inline(always)]
     pub fn piece_type2(&self, pt1: PieceType, pt2: PieceType) -> Bitboard {
@@ -72,11 +79,11 @@ impl Board {
     #[inline(always)]
     pub const fn get_piece(&self, square: Square) -> Option<Piece> {
         debug_assert!(square.is_ok());
-        self.pieces[square.as_usize()]
+        self.pieces[square.to_usize()]
     }
     #[inline(always)]
     pub const fn piece_count(&self, color: Color, pt: PieceType) -> i8 {
-        self.piece_count[PieceType::COUNT * color.as_usize() + pt.as_usize()]
+        self.piece_count[PieceType::COUNT * color.to_usize() + pt.to_usize()]
     }
     #[inline(always)]
     pub const fn to_move(&self) -> Color {
@@ -93,9 +100,11 @@ impl Board {
     }
 
     pub fn attacks_to(&self, square: Square) -> Bitboard {
+        debug_assert!(square.is_ok());
         self.attacks_to_bits(square, self.all())
     }
     pub fn attacks_to_bits(&self, square: Square, bits: Bitboard) -> Bitboard {
+        debug_assert!(square.is_ok());
         let knights = piece_attacks::knight_attacks(square) & self.piece_type(PieceType::Knight);
         let wpawns = piece_attacks::pawn_attacks(square, Color::White)
             & self.spec(Color::Black, PieceType::Pawn);
@@ -113,6 +122,10 @@ impl Board {
             & self.piece_type2(PieceType::Bishop, PieceType::Queen);
 
         rooks | bishops
+    }
+
+    fn str_history(&self) -> String {
+        self.history.iter().map(|m| format!("{m}")).collect::<Vec<_>>().join(" ")
     }
 
     pub fn unblocked_castle(&self, s: &State, ct: CastleType) -> bool {
@@ -291,27 +304,28 @@ impl Board {
         debug_assert_eq!(self.attacks_to(self.king(them)) & self.color(us), Z);
 
         s.checkers = Z;
-        s.blockers[us.as_usize()] = Z;
-        s.blockers[them.as_usize()] = Z;
-        s.check_squares[PieceType::King.as_usize()] = Z;
+        s.blockers[us.to_usize()] = Z;
+        s.blockers[them.to_usize()] = Z;
+        s.check_squares[PieceType::King.to_usize()] = Z;
 
         let king = self.king(us);
+        debug_assert!(king.is_ok());
 
         s.checkers = self.attacks_to(king) & self.color(them);
 
-        s.blockers[Color::White.as_usize()] =
-            self.pinner_blocker(&mut s.pinners[Color::Black.as_usize()], Color::White);
-        s.blockers[Color::Black.as_usize()] =
-            self.pinner_blocker(&mut s.pinners[Color::White.as_usize()], Color::Black);
+        s.blockers[Color::White.to_usize()] =
+            self.pinner_blocker(&mut s.pinners[Color::Black.to_usize()], Color::White);
+        s.blockers[Color::Black.to_usize()] =
+            self.pinner_blocker(&mut s.pinners[Color::White.to_usize()], Color::Black);
 
-        s.check_squares[PieceType::Pawn.as_usize()] = piece_attacks::pawn_attacks(king, us);
-        s.check_squares[PieceType::Knight.as_usize()] = piece_attacks::knight_attacks(king);
-        s.check_squares[PieceType::Bishop.as_usize()] =
+        s.check_squares[PieceType::Pawn.to_usize()] = piece_attacks::pawn_attacks(king, us);
+        s.check_squares[PieceType::Knight.to_usize()] = piece_attacks::knight_attacks(king);
+        s.check_squares[PieceType::Bishop.to_usize()] =
             piece_attacks::bishop_attacks(king, self.all());
-        s.check_squares[PieceType::Rook.as_usize()] = piece_attacks::rook_attacks(king, self.all());
-        s.check_squares[PieceType::Queen.as_usize()] = s.check_squares
-            [PieceType::Bishop.as_usize()]
-            | s.check_squares[PieceType::Rook.as_usize()];
+        s.check_squares[PieceType::Rook.to_usize()] = piece_attacks::rook_attacks(king, self.all());
+        s.check_squares[PieceType::Queen.to_usize()] = s.check_squares
+            [PieceType::Bishop.to_usize()]
+            | s.check_squares[PieceType::Rook.to_usize()];
     }
 
     fn pinner_blocker(&self, pinners: &mut Bitboard, color: Color) -> Bitboard {
@@ -405,6 +419,7 @@ impl Board {
             self.add_piece(t, mov);
         }
 
+        // OPT: Is this faster just to skip the check?
         if s.en_passant().is_some() {
             s.en_passant = None;
         }
@@ -413,6 +428,7 @@ impl Board {
             s.half_moves = 0;
 
             let pep = Square::build(f.file(), Rank::Three.relative_to(us));
+            // OPT: Should we bother with the extra check? Might be faster just to assign.
             if f.distance(t) == 2
                 && (piece_attacks::pawn_attacks_by_board(Bitboard::from(pep), us)
                     & self.spec(!us, PieceType::Pawn))
@@ -422,7 +438,8 @@ impl Board {
             } else if flag == MoveFlag::Promotion {
                 let promp = promt + us;
                 debug_assert!(t.rank() == Rank::Eight.relative_to(us));
-                let _ = self.remove_piece(t);
+                let pr = self.remove_piece(t);
+                debug_assert_eq!(pr, Some(Piece::new(PieceType::Pawn, us)));
                 self.add_piece(t, promp);
             }
         }
@@ -431,6 +448,18 @@ impl Board {
             let _ = [short, long]
                 .into_iter()
                 .map(|cr| s.castle_rights.set(cr, None));
+        } else if mov.kind() == PieceType::Rook {
+            // TODO: Remove CR if applicable
+            for x in CastleRights::rights_for(us) {
+                if let Some((king, dest)) = s.castle_rights.get(x) {
+                    let between_randk = bitboard::between::<true>(king, f);
+                    // Check if this rook was basically the thing keeping right valid.
+                    if (between_randk & dest).gtz() && (f.file() == File::A || f.file() == File::H)
+                    {
+                        s.castle_rights.set(x, None);
+                    }
+                }
+            }
         }
 
         s.captured_piece = cap;
@@ -443,11 +472,7 @@ impl Board {
 
     pub fn apply_moves(&mut self, s: &mut State, moves: &[Move]) -> Result<(), Move> {
         for &m in moves.iter() {
-            if !self.is_legal(s, m) {
-                return Err(m);
-            }
-
-            self.do_move(s, m);
+            self.do_move(s, m)?;
         }
 
         Ok(())
@@ -463,35 +488,24 @@ impl Board {
 
         let mov = self
             .get_piece(t)
-            .ok_or_else(|| {
-                format!(
-                    "{:?} {:?}",
-                    self.history
-                        .iter()
-                        .map(|m| format!("{m}"))
-                        .collect::<Vec<_>>(),
-                    self.history.pop()
-                )
-            })
             .expect("undo-move: could not find moved piece");
 
-        if let Some(_) = self.get_piece(f) {
-            println!("{self}");
-            println!("Move TU: {mv}");
-            panic!();
-        }
         debug_assert!(self.get_piece(f).is_none());
         debug_assert!(s.captured_piece != Some(PieceType::King));
 
-        if cfg!(debug_assertions) {
-            let prev_mov = self.history.pop();
-            assert_eq!(Some(mv), prev_mov);
-        }
+        let prev_mov = self.history.pop();
+        debug_assert_eq!(Some(mv), prev_mov);
 
         if flag == MoveFlag::Promotion {
             debug_assert!(t.rank() == Rank::Eight.relative_to(us));
+            if mov.kind() != mv.promotion_type() {
+                println!("Expected: {:?} Got: {:?}", mv.promotion_type(), mov.kind());
+                println!("Last move: {}. Given: {mv}", prev_mov.unwrap());
+                println!("{}", self.str_history());
+                panic!()
+            }
             debug_assert!(mov.kind() == mv.promotion_type());
-            let _ = self.remove_piece(t);
+            _ = self.remove_piece(t);
             let p = PieceType::Pawn + us;
             self.add_piece(t, p);
         }
@@ -499,8 +513,9 @@ impl Board {
         if flag == MoveFlag::Castle {
             self.do_castle::<false>(s, us, f, t);
         } else {
-            _ = self.remove_piece(t);
-            self.add_piece(f, mov);
+            let x = self.remove_piece(t); // We have corrected the type for promos
+            self.add_piece(f, x.unwrap());
+
             if let Some(pt) = s.captured_piece {
                 let csq = if flag == MoveFlag::EnPassant {
                     debug_assert!(f.rank() == Rank::Five.relative_to(us));
@@ -512,21 +527,22 @@ impl Board {
             }
         }
 
+        // Safety: FIXME: Not sure
         unsafe { *s = *s.collapse().unwrap() };
         self.ply -= 1;
     }
 
     pub fn add_piece(&mut self, s: Square, p: Piece) {
-        self.color_bb[p.color().as_usize()] |= s;
-        self.piece_bb[p.kind().as_usize()] |= s;
-        self.pieces[s.as_usize()] = Some(p);
+        self.color_bb[p.color().to_usize()] |= s;
+        self.piece_bb[p.kind().to_usize()] |= s;
+        self.pieces[s.to_usize()] = Some(p);
     }
     pub fn remove_piece(&mut self, s: Square) -> Option<Piece> {
         let popt = self.get_piece(s);
         if let Some(p) = popt {
-            self.color_bb[p.color().as_usize()] ^= s;
-            self.piece_bb[p.kind().as_usize()] ^= s;
-            self.pieces[s.as_usize()] = None;
+            self.color_bb[p.color().to_usize()] ^= s;
+            self.piece_bb[p.kind().to_usize()] ^= s;
+            self.pieces[s.to_usize()] = None;
         }
 
         popt
@@ -561,24 +577,6 @@ impl Board {
 
         self.add_piece(kto, k);
         self.add_piece(rook_t, r);
-    }
-
-    pub(crate) fn pseudo_legal_castle(&self, from: Square, to: Square) -> bool {
-        let pcf = self.get_piece(from);
-        let pct = self.get_piece(to);
-
-        let Some(pcf) = pcf else { return false; };
-        if pcf.kind() != PieceType::King {
-            return false;
-        }
-
-        let Some(pct) = pct else { return true; };
-        if pct != Piece::new(PieceType::Rook, pcf.color()) {
-            return false;
-        }
-
-        let betw = bitboard::between::<false>(from, to) & self.all();
-        !betw.gtz()
     }
 
     /// Create a new [`Board`] and set up a proper [`State`] for
@@ -764,6 +762,14 @@ impl Board {
         b.compute_state(state);
         Ok(b)
     }
+
+    pub fn clone(&self, state: &State) -> (Self, State) {
+        let mut s = state.clone();
+        s.prev = None;
+        let board = <Self as Clone>::clone(self);
+
+        (board, s)
+    }
 }
 
 impl State {
@@ -809,13 +815,13 @@ impl State {
     #[inline]
     /// Get the [`Bitboard`] of the pieces being pinned to their own king
     pub const fn blockers(&self, color: Color) -> Bitboard {
-        self.blockers[color.as_usize()]
+        self.blockers[color.to_usize()]
     }
 
     #[inline]
     /// Get the [`Bitboard`] of the pieces of [`Color`] pinning against the opposite king
     pub const fn pinners(&self, color: Color) -> Bitboard {
-        self.pinners[color.as_usize()]
+        self.pinners[color.to_usize()]
     }
 
     unsafe fn make_own_child(self) -> Self {
