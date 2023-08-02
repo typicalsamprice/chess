@@ -155,7 +155,7 @@ impl Bitboard {
         let x = self.0.tzcnt();
         Square::new(x as u8)
     }
-    #[inline]
+
     pub fn pop_lsb(&mut self) -> Option<Square> {
         if self.gtz() {
             let s = self.lsb();
@@ -165,7 +165,6 @@ impl Bitboard {
         return None;
     }
 
-    #[inline]
     pub fn and_not<T>(self, arg: T) -> Self
     where
         T: Into<Self>,
@@ -173,7 +172,6 @@ impl Bitboard {
         arg.into().andn(self)
     }
 
-    #[inline]
     pub fn low_high(s: Square) -> (Self, Self) {
         let k = Self::from(s);
         // TODO: Is this faster than the manual one?
@@ -381,7 +379,6 @@ impl Iterator for Bitboard {
         Some(l)
     }
 
-    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         let l = self.popcount() as usize;
         (l, Some(l))

@@ -125,7 +125,11 @@ impl Board {
     }
 
     fn str_history(&self) -> String {
-        self.history.iter().map(|m| format!("{m}")).collect::<Vec<_>>().join(" ")
+        self.history
+            .iter()
+            .map(|m| format!("{m}"))
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 
     pub fn unblocked_castle(&self, s: &State, ct: CastleType) -> bool {
@@ -790,35 +794,31 @@ impl State {
         }
     }
 
-    #[inline]
     /// Get the current castling permissions in the form of a [`CastleRights`]
     pub const fn castle_rights(&self) -> CastleRights {
         self.castle_rights
     }
-    #[inline]
+
     /// Get the current en passant square (the one that the capture takes place on)
     pub const fn en_passant(&self) -> Option<Square> {
         self.en_passant
     }
-    #[inline]
+
     /// Get the current count of plies from null (null being the start)
     pub const fn plies_from_null(&self) -> usize {
         self.plies_from_null
     }
 
-    #[inline]
     /// Get the [`Bitboard`] of the pieces delivering check currently
     pub const fn checkers(&self) -> Bitboard {
         self.checkers
     }
 
-    #[inline]
     /// Get the [`Bitboard`] of the pieces being pinned to their own king
     pub const fn blockers(&self, color: Color) -> Bitboard {
         self.blockers[color.to_usize()]
     }
 
-    #[inline]
     /// Get the [`Bitboard`] of the pieces of [`Color`] pinning against the opposite king
     pub const fn pinners(&self, color: Color) -> Bitboard {
         self.pinners[color.to_usize()]
@@ -857,13 +857,11 @@ pub enum CastleType {
 }
 
 impl CastleRights {
-    #[inline]
     pub fn set(&mut self, ctyp: CastleType, right: CastleRightInternal) {
         debug_assert!(ctyp <= CastleType::BlackLong);
         self.0[ctyp as usize] = right;
     }
 
-    #[inline]
     pub fn get(&self, ctyp: CastleType) -> CastleRightInternal {
         debug_assert!(ctyp <= CastleType::BlackLong);
         self.0[ctyp as usize]
@@ -881,13 +879,11 @@ impl CastleRights {
         None
     }
 
-    #[inline]
     pub fn has_right(&self, ctyp: CastleType) -> bool {
         debug_assert!(ctyp <= CastleType::BlackLong);
         self.0[ctyp as usize].is_some()
     }
 
-    #[inline]
     pub fn has_any_rights(&self, ctyp: CastleType) -> bool {
         match ctyp {
             CastleType::All => {

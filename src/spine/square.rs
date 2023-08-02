@@ -20,26 +20,26 @@ impl Square {
     /// # Panics
     ///
     /// This method panics if `value` is not within [0, 64)
-    #[inline]
+
     pub const fn new(value: u8) -> Self {
         debug_assert!(value <= 63);
         Self(value)
     }
 
     /// Create a new [`Square`] from its constituent [`File`] and [`Rank`]
-    #[inline]
+
     pub const fn build(file: File, rank: Rank) -> Self {
         let i = file.to_usize() + (rank.to_usize() << 3);
         Self(i as u8)
     }
 
     /// Unwrap the [`Square`] to its inner `u8`
-    #[inline]
+
     pub const fn to_u8(self) -> u8 {
         self.0
     }
     /// Unwrap the [`Square`] to its inner `u8` and convert to a `usize`
-    #[inline]
+
     pub const fn to_usize(self) -> usize {
         self.0 as usize
     }
@@ -49,7 +49,7 @@ impl Square {
     /// # Panics
     ///
     /// This will panic if the square is invalid
-    #[inline]
+
     pub const fn file(self) -> File {
         debug_assert!(self.is_ok());
         unsafe { std::mem::transmute(self.0 & 7) }
@@ -60,7 +60,7 @@ impl Square {
     /// # Panics
     ///
     /// This will panic if the square is invalid
-    #[inline]
+
     pub const fn rank(self) -> Rank {
         debug_assert!(self.is_ok());
         unsafe { std::mem::transmute(self.0 >> 3) }
@@ -69,7 +69,7 @@ impl Square {
     /// Get the [`Square`] relative to the viewer. This means that
     /// if `color` is [`Color::Black`], it will "flip" the rank
     /// so that it is all from a standard reference point.
-    #[inline]
+
     pub const fn relative_to(self, color: Color) -> Self {
         Self(self.0 ^ (color.to_usize() as u8 * 56))
     }
@@ -86,14 +86,14 @@ impl Square {
     }
 
     /// Checks whether a [`Square`] is valid.
-    #[inline]
+
     pub const fn is_ok(self) -> bool {
         self.0 < Self::COUNT as u8
     }
 
     /// Checks whether two [`Square`]s are on a horizontal,
     /// vertical or diagonal line
-    #[inline]
+
     pub fn in_line(self, other: Self) -> bool {
         if !(self.is_ok() && other.is_ok()) {
             return false;
@@ -103,18 +103,17 @@ impl Square {
     }
 
     /// Checks whether three [`Square`]s are on the same line
-    #[inline]
+
     pub fn in_line2(self, other: Self, other2: Self) -> bool {
         bitboard::line(self, other) & other2 == other2.into()
     }
 
     /// Fetches the (precomputed) distance between two [`Square`]s
-    #[inline]
+
     pub fn distance(self, other: Self) -> i32 {
         unsafe { SQUARE_DIST[self.to_usize()][other.to_usize()] }
     }
 
-    #[inline]
     pub(crate) const fn to_bitboard(self) -> Bitboard {
         Bitboard::new(1 << self.0)
     }

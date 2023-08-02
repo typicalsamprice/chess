@@ -15,7 +15,12 @@ fn main() {
         move_new!(Square::H3, Square::G2),
         move_new!(Square::B2, Square::B3),
     ];
-    let ill = move_new!(Square::G2, Square::H1, MoveFlag::Promotion, PieceType::Bishop);
+    let ill = move_new!(
+        Square::G2,
+        Square::H1,
+        MoveFlag::Promotion,
+        PieceType::Bishop
+    );
     //let moves = [];
 
     board

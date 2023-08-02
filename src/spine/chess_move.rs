@@ -34,25 +34,21 @@ impl Move {
         Self(frombits | tobits | flagbits | promo_bits)
     }
 
-    #[inline]
     /// Get the [`Square`] the piece is moving from
     pub const fn from_square(self) -> Square {
         Square::new((self.0 & 0x3f) as u8)
     }
 
-    #[inline]
     /// Get the [`Square`] the piece is moving to
     pub const fn to_square(self) -> Square {
         Square::new(((self.0 >> 6) & 0x3f) as u8)
     }
 
-    #[inline]
     /// The [`MoveFlag`] that signifies a special property of the [`Move`]
     pub const fn flag(self) -> MoveFlag {
         unsafe { std::mem::transmute(((self.0 >> 12) & 3) as u8) }
     }
 
-    #[inline]
     /// The [`PieceType`] that the pawn is promoting to.
     /// Note that if the flag of the [`Move`] is not [`MoveFlag::Promotion`],
     /// this **must** equal `PieceType::Pawn`, and can not equal the `Pawn` or `King`
@@ -61,7 +57,6 @@ impl Move {
         unsafe { std::mem::transmute((self.0 >> 14) as u8) }
     }
 
-    #[inline]
     /// Check if the move is (sufficiently) valid. This does not check legality
     /// based on the type of the piece being moved (as this isn't tracked within a [`Move`]),
     /// but does do checks on the validity of the bit pattern contained. If the const generic
@@ -104,7 +99,6 @@ impl Move {
 }
 
 impl MoveFlag {
-    #[inline]
     const fn as_u16(self) -> u16 {
         (self as u16) << 12
     }
@@ -125,15 +119,19 @@ impl fmt::Debug for Move {
 
 impl fmt::Display for Move {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let map_promo = |t: PieceType| {
-            match t {
-                PieceType::Pawn | PieceType::King => "",
-                PieceType::Knight => "=n",
-                PieceType::Bishop => "=b",
-                PieceType::Rook => "=r",
-                PieceType::Queen => "=q",
-            }
+        let map_promo = |t: PieceType| match t {
+            PieceType::Pawn | PieceType::King => "",
+            PieceType::Knight => "=n",
+            PieceType::Bishop => "=b",
+            PieceType::Rook => "=r",
+            PieceType::Queen => "=q",
         };
-        write!(f, "{}{}{}", self.from_square(), self.to_square(), map_promo(self.promotion_type()))
+        write!(
+            f,
+            "{}{}{}",
+            self.from_square(),
+            self.to_square(),
+            map_promo(self.promotion_type())
+        )
     }
 }

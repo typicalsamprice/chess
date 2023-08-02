@@ -17,7 +17,6 @@ pub enum GenType {
     Evasions,
 }
 
-#[inline]
 fn generate_pawn_promotions(list: &mut Movelist, from: Square, to: Square) {
     for pt in [Knight, Bishop, Rook, Queen] {
         list.push_back(move_new!(from, to, MoveFlag::Promotion, pt));

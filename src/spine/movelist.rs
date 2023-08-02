@@ -11,29 +11,25 @@ impl Movelist {
     const MAX_MOVES: usize = 256;
 
     /// Create an empty `Movelist`
-    #[inline]
+
     pub fn new() -> Self {
         Self {
             moves: Vec::with_capacity(Self::MAX_MOVES),
         }
     }
 
-    #[inline]
     pub fn len(&self) -> usize {
         self.moves.len()
     }
 
-    #[inline]
     pub fn get(&self, index: usize) -> Option<&Move> {
         self.moves.get(index)
     }
 
-    #[inline]
     pub fn last(&self) -> Option<&Move> {
         self.moves.last()
     }
 
-    #[inline]
     pub fn push_back(&mut self, mv: Move) {
         // This is just to make sure we aren't reallocating unnecessarily.
         debug_assert_ne!(self.len(), Self::MAX_MOVES);
@@ -41,7 +37,7 @@ impl Movelist {
     }
 
     /// Get the Movelist as a slice of [`Move`]s
-    #[inline]
+
     pub fn as_slice(&self) -> &[Move] {
         &self.moves
     }
@@ -65,12 +61,10 @@ impl Movelist {
         self.moves.retain(f);
     }
 
-    #[inline]
     pub fn extend(&mut self, other: Self) {
         self.moves.extend_from_slice(other.as_slice());
     }
 
-    #[inline]
     pub fn iter(&self) -> std::slice::Iter<'_, Move> {
         self.moves.iter()
     }

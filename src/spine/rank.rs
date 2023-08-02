@@ -13,12 +13,10 @@ pub enum Rank {
 }
 
 impl Rank {
-    #[inline]
     pub const fn to_usize(self) -> usize {
         self as usize
     }
 
-    #[inline]
     pub const fn relative_to(self, color: Color) -> Self {
         match color {
             Color::White => self,
