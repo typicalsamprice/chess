@@ -14,8 +14,8 @@ pub mod movegen;
 pub mod perft;
 pub mod piece_attacks;
 
-pub use bitboard::{initialize_bitboards, Bitboard, ShiftDir};
-pub use board::{Board, CastleRights, CastleType, State};
+pub use bitboard::{Bitboard, ShiftDir};
+pub use board::{Board, CastleRights, State};
 pub use chess_move::{Move, MoveFlag};
 pub use color::Color;
 pub use file::File;

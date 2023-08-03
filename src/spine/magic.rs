@@ -14,7 +14,7 @@ struct Magic {
 
 impl Magic {
     #[inline(always)]
-    pub const fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self {
             magic: Bitboard::ZERO,
             mask: Bitboard::ZERO,
@@ -26,12 +26,12 @@ impl Magic {
     }
 
     #[cfg(feature = "pext")]
-    pub fn offset(&self, occupied: Bitboard) -> usize {
+    fn offset(&self, occupied: Bitboard) -> usize {
         pext_u64(occupied.inner(), self.mask.inner()) as usize
     }
 
     #[cfg(not(feature = "pext"))]
-    pub fn offset(&self, occupied: Bitboard) -> usize {
+    fn offset(&self, occupied: Bitboard) -> usize {
         let masked = occupied & self.mask;
         let v = masked * self.magic;
         v.inner() as usize >> self.shift
@@ -48,18 +48,18 @@ const SEEDS: [u64; 8] = [728, 10316, 55013, 32803, 12281, 15100, 16645, 255];
 
 pub(crate) fn initialize_magics() {
     unsafe {
-        init_magics(false);
-        init_magics(true);
+        init_magics::<false>();
+        init_magics::<true>();
     }
 }
 
-unsafe fn init_magics(is_rook: bool) {
-    let magics = if is_rook {
+unsafe fn init_magics<const IS_ROOK: bool>() {
+    let magics = if IS_ROOK {
         &mut ROOK_MAGICS
     } else {
         &mut BISHOP_MAGICS
     };
-    let table = if is_rook {
+    let table = if IS_ROOK {
         &mut ROOK_TABLE[..]
     } else {
         &mut BISHOP_TABLE[..]
@@ -86,7 +86,7 @@ unsafe fn init_magics(is_rook: bool) {
             magics[s.to_usize() - 1].ptr
         };
         let m = &mut magics[s.to_usize()];
-        m.mask = sliding_attack(s, is_rook, Bitboard::ZERO) & !edges;
+        m.mask = sliding_attack(s, IS_ROOK, Bitboard::ZERO) & !edges;
         m.shift = 64 - m.mask.popcount();
         m.ptr = ptr + size;
 
@@ -95,7 +95,7 @@ unsafe fn init_magics(is_rook: bool) {
 
         while b.gtz() || size == 0 {
             occs[size] = b;
-            atts[size] = sliding_attack(s, is_rook, b);
+            atts[size] = sliding_attack(s, IS_ROOK, b);
 
             if cfg!(feature = "pext") {
                 table[m.ptr + pext_u64(b.inner(), m.mask.inner()) as usize] = atts[size];
@@ -180,10 +180,10 @@ fn sliding_attack(square: Square, is_rook: bool, occupied_squares: Bitboard) -> 
     rv
 }
 
-pub(crate) fn magic_lookup(is_rook: bool, square: Square, occupied: Bitboard) -> Bitboard {
+pub(crate) fn magic_lookup<const IS_ROOK: bool>(square: Square, occupied: Bitboard) -> Bitboard {
     debug_assert!(square.is_ok());
     let magics = unsafe {
-        if is_rook {
+        if IS_ROOK {
             ROOK_MAGICS
         } else {
             BISHOP_MAGICS

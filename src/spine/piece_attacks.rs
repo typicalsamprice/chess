@@ -6,12 +6,8 @@ use crate::spine::bitboard::PSEUDO_ATTACKS;
 
 pub fn pawn_attacks_by_board(pawns: Bitboard, color: Color) -> Bitboard {
     match color {
-        Color::White => {
-            ((pawns << 7) & !Bitboard::from(File::H)) | ((pawns << 9) & !Bitboard::from(File::A))
-        }
-        Color::Black => {
-            ((pawns >> 7) & !Bitboard::from(File::A)) | ((pawns >> 9) & !Bitboard::from(File::H))
-        }
+        Color::White => ((pawns << 7).and_not(File::H)) | ((pawns << 9).and_not(File::A)),
+        Color::Black => ((pawns >> 7).and_not(File::A)) | ((pawns >> 9).and_not(File::H)),
     }
 }
 pub fn pawn_attacks(square: Square, color: Color) -> Bitboard {
@@ -20,6 +16,7 @@ pub fn pawn_attacks(square: Square, color: Color) -> Bitboard {
 }
 
 pub fn king_attacks(square: Square) -> Bitboard {
+    debug_assert!(square.is_ok());
     unsafe { PSEUDO_ATTACKS[1][square.to_usize()] }
 }
 pub(crate) fn king_attacks_comp(square: Square) -> Bitboard {
@@ -27,7 +24,7 @@ pub(crate) fn king_attacks_comp(square: Square) -> Bitboard {
     for shift in [1, 7, 8, 9, -1, -7, -8, -9] {
         if let Some(off) = square.offset(shift) {
             if square.distance(off) <= 2 {
-                rv |= Into::<Bitboard>::into(off);
+                rv |= off;
             }
         }
     }
@@ -50,10 +47,10 @@ pub fn knight_attacks_by_board(knights: Bitboard) -> Bitboard {
 }
 
 pub fn bishop_attacks(square: Square, occupancy: Bitboard) -> Bitboard {
-    magic_lookup(false, square, occupancy)
+    magic_lookup::<false>(square, occupancy)
 }
 pub fn rook_attacks(square: Square, occupancy: Bitboard) -> Bitboard {
-    magic_lookup(true, square, occupancy)
+    magic_lookup::<true>(square, occupancy)
 }
 pub fn queen_attacks(square: Square, occupancy: Bitboard) -> Bitboard {
     bishop_attacks(square, occupancy) | rook_attacks(square, occupancy)
