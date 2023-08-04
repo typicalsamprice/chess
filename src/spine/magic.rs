@@ -1,6 +1,7 @@
 use crate::macros::pext_u64;
 use crate::prelude::*;
 use crate::spine::prng::PRNG;
+use crate::flags;
 
 #[derive(Debug, Clone, Copy)]
 struct Magic {
@@ -97,7 +98,7 @@ unsafe fn init_magics<const IS_ROOK: bool>() {
             occs[size] = b;
             atts[size] = sliding_attack(s, IS_ROOK, b);
 
-            if cfg!(feature = "pext") {
+            if flags::PEXT {
                 table[m.ptr + pext_u64(b.inner(), m.mask.inner()) as usize] = atts[size];
             }
 
@@ -107,7 +108,7 @@ unsafe fn init_magics<const IS_ROOK: bool>() {
 
         m.width = size;
 
-        if cfg!(feature = "pext") {
+        if flags::PEXT {
             continue;
         }
 

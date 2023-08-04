@@ -171,13 +171,6 @@ impl Bitboard {
     {
         arg.into().andn(self)
     }
-
-    pub fn low_high(s: Square) -> (Self, Self) {
-        let k = Self::from(s);
-        // TODO: Is this faster than the manual one?
-        let low = k.blsmsk();
-        (low, Bitboard::MAX ^ low ^ s)
-    }
 }
 
 // The bitintr stuff for Bitboards
@@ -324,8 +317,9 @@ impl<const N: usize> From<[Square; N]> for Bitboard {
     fn from(sqs: [Square; N]) -> Self {
         debug_assert!(N > 0);
         let mut s = 0;
-        for i in 0..N {
-            s |= 1 << sqs[i].to_u8();
+        for sq in sqs.iter().take(N) {
+            debug_assert!(sq.is_ok());
+            s |= 1 << sq.to_usize();
         }
         Self(s)
     }
