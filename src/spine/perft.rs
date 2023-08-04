@@ -155,7 +155,7 @@ mod kiwipete {
         #[test]
         fn depth_five() {
             init();
-            setup_perft!(Board::KIWIPETE, 193_690_690, 4);
+            setup_perft!(Board::KIWIPETE, 193_690_690, 5);
         }
     }
 }
