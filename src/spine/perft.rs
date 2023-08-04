@@ -39,7 +39,7 @@ fn perft__<const ROOT: bool>(board: &mut Board, state: &mut State, depth: usize)
         }
 
         if ROOT && !cfg!(test) {
-            println!("{}{}: {cur}", m.from_square(), m.to_square());
+            println!("{m}: {cur}");
         }
     }
 

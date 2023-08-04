@@ -26,34 +26,25 @@ pub struct Piece {
 impl PieceType {
     pub const COUNT: usize = 6;
 
-    #[inline(always)]
     pub const fn to_usize(self) -> usize {
         self as usize
     }
 }
 
 impl Piece {
-    #[inline(always)]
     pub const fn new(kind: PieceType, color: Color) -> Self {
         Self { kind, color }
     }
 
-    #[inline(always)]
     pub const fn to_usize(&self) -> usize {
         self.color.to_usize() * 8 + self.kind.to_usize()
     }
 
-    #[inline(always)]
     pub const fn kind(&self) -> PieceType {
         self.kind
     }
-    #[inline(always)]
     pub const fn color(&self) -> Color {
         self.color
-    }
-
-    pub fn is_slider(&self) -> bool {
-        self.kind <= PieceType::Queen && self.kind >= PieceType::Bishop
     }
 }
 

@@ -1,11 +1,9 @@
 use crate::prelude::*;
 use std::fmt;
 
-use std::str::FromStr;
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 /// A struct that holds the bit pattern for a chess move
-pub struct Move(u16);
+pub struct Move(u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Flag that is used to signify a special property of a [`Move`]
 pub enum MoveFlag {
@@ -27,11 +25,11 @@ impl Move {
     pub const NULL: Self = Self(0x0000);
 
     /// Create a new [`Move`] by passing in all the bits and pieces manually
-    pub const fn new(from: Square, to: Square, flag: MoveFlag, promotion_type: PieceType) -> Self {
-        let frombits = from.to_u8() as u16;
-        let tobits = (to.to_u8() as u16) << 6;
-        let flagbits = flag.as_u16();
-        let promo_bits = (promotion_type.to_usize() as u16) << 14;
+    pub fn new(from: Square, to: Square, flag: MoveFlag, promotion_type: PieceType) -> Self {
+        let frombits = from.to_u8() as u32;
+        let tobits = (to.to_u8() as u32) << 6;
+        let flagbits = flag.as_u32();
+        let promo_bits = (promotion_type.to_usize() as u32) << 14;
 
         Self(frombits | tobits | flagbits | promo_bits)
     }
@@ -59,50 +57,11 @@ impl Move {
         unsafe { std::mem::transmute((self.0 >> 14) as u8) }
     }
 
-    /// Check if the move is (sufficiently) valid. This does not check legality
-    /// based on the type of the piece being moved (as this isn't tracked within a [`Move`]),
-    /// but does do checks on the validity of the bit pattern contained. If the const generic
-    /// `FAST == true`, then it only checks that `self` is not equal to [`Move::NULL`]
-    pub fn is_ok<const FAST: bool>(self) -> bool {
-        if FAST {
-            return self.0 > Self::NULL.0;
-        }
-        if self.to_square() == self.from_square() {
-            return false;
-        }
-
-        if FAST {
-            return true;
-        }
-
-        let pt = self.promotion_type();
-        let fl = self.flag();
-
-        if fl == MoveFlag::Castle || fl == MoveFlag::Promotion {
-            if self.to_square().rank() != self.from_square().rank() {
-                return false;
-            }
-
-            if fl == MoveFlag::Promotion {
-                if pt == PieceType::Pawn || pt == PieceType::King {
-                    return false;
-                }
-            } else if pt != PieceType::Pawn {
-                return false;
-            }
-        }
-
-        if fl == MoveFlag::EnPassant && self.to_square().distance(self.from_square()) != 1 {
-            return false;
-        }
-
-        true
-    }
 }
 
 impl MoveFlag {
-    const fn as_u16(self) -> u16 {
-        (self as u16) << 12
+    const fn as_u32(self) -> u32 {
+        (self as u32) << 12
     }
 }
 
@@ -122,12 +81,13 @@ impl fmt::Debug for Move {
 impl fmt::Display for Move {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let map_promo = |t: PieceType| match t {
-            PieceType::Pawn | PieceType::King => "",
-            PieceType::Knight => "=n",
-            PieceType::Bishop => "=b",
-            PieceType::Rook => "=r",
-            PieceType::Queen => "=q",
+            PieceType::Pawn | PieceType::King => '\x00',
+            PieceType::Knight => 'n',
+            PieceType::Bishop => 'b',
+            PieceType::Rook => 'r',
+            PieceType::Queen => 'q',
         };
+
         write!(
             f,
             "{}{}{}",

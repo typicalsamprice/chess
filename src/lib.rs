@@ -32,6 +32,7 @@ pub mod prelude {
 }
 
 pub fn print_comp_flags() {
+    print!("Flags: ");
     #[cfg(feature = "pext")]
     print!("PEXT ");
 

@@ -19,7 +19,7 @@ pub enum GenType {
 
 fn generate_pawn_promotions(list: &mut Movelist, from: Square, to: Square) {
     for pt in [Knight, Bishop, Rook, Queen] {
-        list.push_back(move_new!(from, to, MoveFlag::Promotion, pt));
+        list.push_back(Move::new(from, to, MoveFlag::Promotion, pt));
     }
 }
 
