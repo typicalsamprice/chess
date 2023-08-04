@@ -159,3 +159,37 @@ mod kiwipete {
         }
     }
 }
+#[cfg(test)]
+mod pos3 {
+    use super::starting_position::init;
+    const FEN: &str = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -";
+
+    mod shallow {
+        use super::init;
+        use super::FEN;
+
+        #[test]
+        fn depth_one() {
+            init();
+            setup_perft!(FEN, 14, 1);
+        }
+
+        #[test]
+        fn depth_two() {
+            init();
+            setup_perft!(FEN, 191, 2);
+        }
+
+        #[test]
+        fn depth_three() {
+            init();
+            setup_perft!(FEN, 2_812, 3);
+        }
+
+        #[test]
+        fn depth_four() {
+            init();
+            setup_perft!(FEN, 43_238, 4);
+        }
+    }
+}

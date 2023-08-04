@@ -183,7 +183,7 @@ pub fn generate_legal(board: &Board, state: &State) -> Movelist {
     list.retain(|&m| {
         if m.from_square() == king
             || (state.blockers(us) & m.from_square()).gtz()
-            || Some(m.from_square()) == state.en_passant()
+            || Some(m.to_square()) == state.en_passant()
         {
             board.is_legal(state, m)
         } else {
