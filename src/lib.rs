@@ -5,6 +5,9 @@
 #[warn(missing_docs)]
 mod spine;
 
+/// semver of the program
+pub const VERSION: &'static str = "0.0.1";
+
 pub use spine::bitboard;
 #[doc(inline)]
 pub use spine::movegen;
@@ -26,4 +29,12 @@ pub mod prelude {
     pub use spine::{Board, CastleRights, State};
     pub use spine::{Move, MoveFlag};
     pub use spine::{Piece, PieceType};
+}
+
+pub fn print_comp_flags() {
+    #[cfg(feature = "pext")]
+    print!("PEXT ");
+
+    print!("\n");
+    println!("Version {}", VERSION);
 }

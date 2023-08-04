@@ -1,6 +1,3 @@
-[rust]
-debuginfo-level = 1
-
 [package]
 name = "chess"
 version = "0.1.0"

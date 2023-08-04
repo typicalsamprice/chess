@@ -1,6 +1,8 @@
 use crate::prelude::*;
 use std::fmt;
 
+use std::str::FromStr;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 /// A struct that holds the bit pattern for a chess move
 pub struct Move(u16);

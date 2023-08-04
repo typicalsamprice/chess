@@ -96,7 +96,7 @@ fn generate_king_moves(
     let us = board.to_move();
     let king = board.king(us);
 
-    let basic_moves = king_attacks(king);
+    let basic_moves = king_attacks(king) & !board.color(us);
     for x in basic_moves {
         list.push_back(move_new!(king, x));
     }
@@ -105,14 +105,13 @@ fn generate_king_moves(
         return;
     }
 
-    let castles = CastleRights::rights_for(us);
-    for ct in castles {
-        if state.castle_rights().has_right(ct) {
-            if board.unblocked_castle(state, ct) {
+    for right in state.castle_rights().rights_for(us) {
+        if let Some(ct) = right {
+            debug_assert_eq!(king, ct.king_from);
+            if board.unblocked_castle(ct) {
                 // Safety: We can unwrap() here because `unblocked_castle` would
                 // return false if the variant was `None`.
-                let (_, to) = state.castle_rights().get(ct).unwrap();
-                list.push_back(move_new!(king, to, MoveFlag::Castle));
+                list.push_back(move_new!(ct.king_from, ct.king_to, MoveFlag::Castle));
             }
         }
     }

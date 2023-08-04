@@ -132,36 +132,30 @@ impl Board {
             .join(" ")
     }
 
-    pub fn unblocked_castle(&self, s: &State, ct: CastleType) -> bool {
-        let Some((from, to)) = s.castle_rights().get(ct) else {
-            return false;
-        };
+    pub fn unblocked_castle(&self, right: CastleRight) -> bool {
+        let CastleRight {
+            king_from,
+            king_to,
+            rook_from,
+            rook_to,
+        } = right;
 
-        if from != self.king(self.to_move) {
+        let btw_kf_and_rf = bitboard::between::<false>(king_from, rook_from);
+        if (self.all() & btw_kf_and_rf).gtz() {
             return false;
         }
 
-        let (low_possible, high_possible) = Bitboard::low_high(from)
-            & self.spec(self.to_move, PieceType::Rook)
-            & Bitboard::from(from.rank());
-        let mut rookb = if from < to {
-            high_possible
-        } else {
-            low_possible
-        };
-
-        let Some(x) = rookb.next() else {
+        let king_travel = bitboard::between::<true>(king_from, king_to) & self.all();
+        if king_travel.gtz() && (king_travel ^ rook_from).gtz() {
             return false;
-        };
-
-        let betw_rook = bitboard::between::<false>(from, x);
-        ret_false_if!((betw_rook & self.all()).gtz());
+        }
 
         true
     }
 
     /// Check whether a [`Move`] is legal given a position.
     pub fn is_legal(&self, s: &State, mv: Move) -> bool {
+        #[cfg(debug_assertions)]
         ret_false_if!(!self.is_pseudo_legal(s, mv));
 
         let f = mv.from_square();
@@ -274,26 +268,24 @@ impl Board {
             ret_false_if!((between_to_from & self.all()).gtz());
         }
 
+        // TODO: Test this logic
         if flag == Castle {
-            let right = s.castle_rights().find(f, t);
+            let Some(right) = s.castle_rights().find(f, t) else {
+                return false;
+            };
 
-            ret_false_if!(right.is_none());
-            let right = right.unwrap();
+            let btw_rook_and_king =
+                bitboard::between::<false>(right.king_from, right.rook_from) & self.all();
+            ret_false_if!(btw_rook_and_king.gtz());
 
-            ret_false_if!(!s.castle_rights().has_right(right));
-            let (from, to) = s.castle_rights().get(right).unwrap();
-            ret_false_if!(f != k);
-
-            if let Some(cap) = cap {
-                ret_false_if!(!self.is960);
-                ret_false_if!(cap != Piece::new(Rook, us));
-            }
-
-            let between_to_from = bitboard::between::<true>(f, t) & self.all();
-            match between_to_from.popcount() {
-                0 => (),
-                1 => ret_false_if!(!self.is960 || !(between_to_from & self.spec(us, Rook)).gtz()),
-                _ => return false,
+            let king_travels =
+                bitboard::between::<true>(right.king_from, right.king_to) & self.all();
+            if king_travels.gtz()
+                && !(self.is960
+                    && right.king_to == right.rook_from
+                    && !(king_travels ^ right.rook_from).gtz())
+            {
+                return false;
             }
         }
 
@@ -386,29 +378,23 @@ impl Board {
             cap
         };
 
-        let [short, long] = CastleRights::rights_for(!us);
         if let Some(pc) = cap {
             let cap_square = if flag == MoveFlag::EnPassant {
                 Square::build(t.file(), Rank::Five.relative_to(us))
             } else {
                 t
             };
-            let _ = self.remove_piece(cap_square);
+
+            _ = self.remove_piece(cap_square).map(|x| x.kind());
 
             if pc == PieceType::Rook {
-                match t.relative_to(us) {
-                    Square::H8 => {
-                        if s.castle_rights().has_right(short) {
-                            s.castle_rights.set(short, None);
+                s.castle_rights.mut_rights_for(them).map(|right| {
+                    if let Some(r) = right {
+                        if r.rook_from == cap_square {
+                            *right = None;
                         }
                     }
-                    Square::A8 => {
-                        if s.castle_rights().has_right(long) {
-                            s.castle_rights.set(long, None)
-                        }
-                    }
-                    _ => (),
-                }
+                });
             }
 
             s.half_moves = 0;
@@ -449,18 +435,14 @@ impl Board {
         }
 
         if mov.kind() == PieceType::King {
-            let _ = [short, long]
-                .into_iter()
-                .map(|cr| s.castle_rights.set(cr, None));
+            s.castle_rights
+                .mut_rights_for(us)
+                .map(|right| *right = None);
         } else if mov.kind() == PieceType::Rook {
-            // TODO: Remove CR if applicable
-            for x in CastleRights::rights_for(us) {
-                if let Some((king, dest)) = s.castle_rights.get(x) {
-                    let between_randk = bitboard::between::<true>(king, f);
-                    // Check if this rook was basically the thing keeping right valid.
-                    if (between_randk & dest).gtz() && (f.file() == File::A || f.file() == File::H)
-                    {
-                        s.castle_rights.set(x, None);
+            for x in s.castle_rights.mut_rights_for(us) {
+                if let Some(right) = x {
+                    if right.rook_from == f {
+                        *x = None;
                     }
                 }
             }
@@ -679,25 +661,45 @@ impl Board {
                 break;
             }
             if c == '-' {
-                if state.castle_rights.has_any_rights(CastleType::All) {
+                if !state.castle_rights.all_none() {
                     return Err(BoardCreationError::InvalidCastleRights);
                 }
                 break;
             }
 
             match c {
-                'K' => state
-                    .castle_rights
-                    .set(CastleType::WhiteShort, Some((Square::E1, Square::G1))),
-                'Q' => state
-                    .castle_rights
-                    .set(CastleType::WhiteLong, Some((Square::E1, Square::C1))),
-                'k' => state
-                    .castle_rights
-                    .set(CastleType::BlackShort, Some((Square::E8, Square::G8))),
-                'q' => state
-                    .castle_rights
-                    .set(CastleType::BlackLong, Some((Square::E8, Square::C8))),
+                'K' => {
+                    state.castle_rights.white_short = Some(CastleRight {
+                        king_from: Square::E1,
+                        king_to: Square::G1,
+                        rook_from: Square::H1,
+                        rook_to: Square::F1,
+                    })
+                }
+                'Q' => {
+                    state.castle_rights.white_long = Some(CastleRight {
+                        king_from: Square::E1,
+                        king_to: Square::C1,
+                        rook_from: Square::A1,
+                        rook_to: Square::D1,
+                    })
+                }
+                'k' => {
+                    state.castle_rights.black_short = Some(CastleRight {
+                        king_from: Square::E8,
+                        king_to: Square::G8,
+                        rook_from: Square::H8,
+                        rook_to: Square::F8,
+                    })
+                }
+                'q' => {
+                    state.castle_rights.black_long = Some(CastleRight {
+                        king_from: Square::E8,
+                        king_to: Square::C8,
+                        rook_from: Square::A8,
+                        rook_to: Square::D8,
+                    })
+                }
                 _ => return Err(BoardCreationError::InvalidCastleRights),
             }
         }
@@ -780,7 +782,7 @@ impl State {
     /// Create a new blank [`State`] with no parent
     pub const fn new() -> Self {
         Self {
-            castle_rights: CastleRights::default_const(),
+            castle_rights: CastleRights::new(),
             en_passant: None,
             half_moves: 0,
             plies_from_null: 0,
@@ -839,87 +841,73 @@ impl State {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 /// A wrapper that denotes certain castling privileges
-pub struct CastleRights([CastleRightInternal; 4]);
-type CastleRightInternal = Option<(Square, Square)>; // Not public, doesn't need to be
+pub struct CastleRights {
+    pub white_short: Option<CastleRight>,
+    pub white_long: Option<CastleRight>,
+    pub black_short: Option<CastleRight>,
+    pub black_long: Option<CastleRight>,
+}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[allow(missing_docs)]
-pub enum CastleType {
-    WhiteShort,
-    WhiteLong,
-    BlackShort,
-    BlackLong,
-    WhiteAll,
-    BlackAll,
-    All,
+#[derive(Debug, Clone, Copy)]
+pub struct CastleRight {
+    pub king_from: Square,
+    pub king_to: Square,
+    pub rook_from: Square,
+    pub rook_to: Square,
 }
 
 impl CastleRights {
-    pub fn set(&mut self, ctyp: CastleType, right: CastleRightInternal) {
-        debug_assert!(ctyp <= CastleType::BlackLong);
-        self.0[ctyp as usize] = right;
+    pub const fn new() -> Self {
+        Self {
+            white_short: None,
+            white_long: None,
+            black_short: None,
+            black_long: None,
+        }
     }
 
-    pub fn get(&self, ctyp: CastleType) -> CastleRightInternal {
-        debug_assert!(ctyp <= CastleType::BlackLong);
-        self.0[ctyp as usize]
+    fn each(&self) -> [Option<CastleRight>; 4] {
+        [
+            self.white_short,
+            self.white_long,
+            self.black_short,
+            self.black_long,
+        ]
     }
 
-    /// Find the [`CastleType`] a certain pair of squares refer to, if any
-    pub fn find(&self, from: Square, to: Square) -> Option<CastleType> {
-        use CastleType::*;
-        for ct in [WhiteShort, WhiteLong, BlackShort, BlackLong] {
-            if self.get(ct) == Some((from, to)) {
-                return Some(ct);
+    pub const fn all_none(&self) -> bool {
+        self.white_short.is_none()
+            && self.white_long.is_none()
+            && self.black_short.is_none()
+            && self.black_long.is_none()
+    }
+
+    pub const fn rights_for(&self, color: Color) -> [Option<CastleRight>; 2] {
+        match color {
+            Color::White => [self.white_short, self.white_long],
+            Color::Black => [self.black_short, self.black_long],
+        }
+    }
+
+    pub fn mut_rights_for(&mut self, color: Color) -> [&mut Option<CastleRight>; 2] {
+        match color {
+            Color::White => [&mut self.white_short, &mut self.white_long],
+            Color::Black => [&mut self.black_short, &mut self.black_long],
+        }
+    }
+
+    pub fn find(&self, king_from: Square, king_to: Square) -> Option<CastleRight> {
+        for x in self.each() {
+            if let Some(x) = x {
+                if x.king_from == king_from && x.king_to == king_to {
+                    return Some(x);
+                }
             }
         }
 
         None
-    }
-
-    pub fn has_right(&self, ctyp: CastleType) -> bool {
-        debug_assert!(ctyp <= CastleType::BlackLong);
-        self.0[ctyp as usize].is_some()
-    }
-
-    pub fn has_any_rights(&self, ctyp: CastleType) -> bool {
-        match ctyp {
-            CastleType::All => {
-                self.has_any_rights(CastleType::WhiteAll)
-                    || self.has_any_rights(CastleType::BlackAll)
-            }
-            CastleType::WhiteAll => {
-                self.has_right(CastleType::WhiteShort) || self.has_right(CastleType::WhiteLong)
-            }
-            CastleType::BlackAll => {
-                self.has_right(CastleType::BlackShort) || self.has_right(CastleType::BlackLong)
-            }
-            _ => panic!("CastleRights::has_any_right called with invalid CastleType"),
-        }
-    }
-
-    pub fn rights_for(color: Color) -> [CastleType; 2] {
-        match color {
-            Color::White => [CastleType::WhiteShort, CastleType::WhiteLong],
-            Color::Black => [CastleType::BlackShort, CastleType::BlackLong],
-        }
-    }
-
-    const fn default_const() -> Self {
-        Self([
-            Some((Square::E1, Square::G1)),
-            Some((Square::E1, Square::C1)),
-            Some((Square::E8, Square::G8)),
-            Some((Square::E8, Square::C8)),
-        ])
-    }
-}
-
-impl Default for CastleRights {
-    fn default() -> Self {
-        Self::default_const()
     }
 }
 
