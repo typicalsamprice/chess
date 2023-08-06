@@ -6,6 +6,8 @@ use std::fmt;
 use std::mem::transmute;
 use std::ops;
 
+use std::sync::Once;
+
 use bitintr::Andn;
 use bitintr::Blsi;
 use bitintr::{Blsmsk, Bzhi, Popcnt, Tzcnt};
@@ -44,6 +46,10 @@ pub fn line(a: Square, b: Square) -> Bitboard {
 }
 
 pub fn initialize_bitboards() {
+    Once::new().call_once(|| initialize_bitboards__())
+}
+
+fn initialize_bitboards__() {
     for i in 0..64 {
         for j in 0..64 {
             let s = Square::new(i);

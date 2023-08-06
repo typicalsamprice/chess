@@ -10,7 +10,7 @@ fn main() {
     let mut s = State::new();
     let mut b = Board::new(Board::STARTPOS, &mut s).unwrap();
 
-    let moves = [ ];
+    let moves = [move_new!("d2d4")];
 
     b.apply_moves(&mut s, &moves).unwrap();
     //println!("Fen: {}", Board::KIWIPETE);
