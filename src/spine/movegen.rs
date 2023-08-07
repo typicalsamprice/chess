@@ -82,7 +82,6 @@ fn generate_pawn_moves(
         let pawns = pawn_attacks(ep, them) & rest;
         for p in pawns {
             list.push_back(move_new!(p, ep, MoveFlag::EnPassant));
-            dbg!(ep.to_string());
         }
     }
 }
