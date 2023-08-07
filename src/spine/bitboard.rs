@@ -30,21 +30,6 @@ pub enum ShiftDir {
     Backward(Color),
 }
 
-pub fn between<const KEEP_END: bool>(from: Square, to: Square) -> Bitboard {
-    debug_assert!(from.is_ok() && to.is_ok());
-    let k = unsafe { BETWEEN_BB[from.to_usize()][to.to_usize()] };
-    if !KEEP_END {
-        // Remove the end bit
-        k ^ to
-    } else {
-        k
-    }
-}
-pub fn line(a: Square, b: Square) -> Bitboard {
-    debug_assert!(a.is_ok() && b.is_ok());
-    unsafe { LINE_BB[a.to_usize()][b.to_usize()] }
-}
-
 pub fn initialize_bitboards() {
     Once::new().call_once(|| initialize_bitboards__())
 }
@@ -117,32 +102,26 @@ impl Bitboard {
     pub const ZERO: Self = Self(0);
     pub const MAX: Self = Self(u64::MAX);
 
-    #[inline(always)]
     pub const fn new(value: u64) -> Self {
         Self(value)
     }
 
-    #[inline(always)]
     pub const fn inner(self) -> u64 {
         self.0
     }
 
-    #[inline(always)]
     pub const fn gtz(self) -> bool {
         self.0 != 0
     }
 
-    #[inline(always)]
     pub fn popcount(self) -> u32 {
         self.0.popcnt() as u32
     }
 
-    #[inline(always)]
     pub const fn more_than_one(self) -> bool {
         self.0 & (self.0.wrapping_sub(1)) > 0
     }
 
-    #[inline(always)]
     pub const fn const_or(self, other: Self) -> Self {
         Self(self.0 | other.0)
     }
@@ -156,7 +135,6 @@ impl Bitboard {
         }
     }
 
-    #[inline(always)]
     pub fn lsb(self) -> Square {
         let x = self.0.tzcnt();
         Square::new(x as u8)
@@ -176,6 +154,21 @@ impl Bitboard {
         T: Into<Self>,
     {
         arg.into().andn(self)
+    }
+
+    pub fn between<const KEEP_END: bool>(from: Square, to: Square) -> Bitboard {
+        debug_assert!(from.is_ok() && to.is_ok());
+        let k = unsafe { BETWEEN_BB[from.to_usize()][to.to_usize()] };
+        if !KEEP_END {
+            // Remove the end bit
+            k ^ to
+        } else {
+            k
+        }
+    }
+    pub fn line(a: Square, b: Square) -> Bitboard {
+        debug_assert!(a.is_ok() && b.is_ok());
+        unsafe { LINE_BB[a.to_usize()][b.to_usize()] }
     }
 }
 
@@ -391,6 +384,7 @@ impl fmt::Debug for Bitboard {
         write!(f, "Bitboard({:#016x?})", self.0)
     }
 }
+
 impl fmt::Display for Bitboard {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut s = String::with_capacity(72);

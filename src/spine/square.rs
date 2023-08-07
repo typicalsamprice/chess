@@ -1,7 +1,7 @@
 use std::fmt;
 
-use crate::bitboard::{self, SQUARE_DIST};
 use crate::prelude::*;
+use crate::spine::bitboard::SQUARE_DIST;
 
 use ShiftDir::*;
 
@@ -99,13 +99,13 @@ impl Square {
             return false;
         }
         self.distance(other) <= 1
-            || (bitboard::line(self, other) ^ Bitboard::from([self, other])).gtz()
+            || (Bitboard::line(self, other) ^ Bitboard::from([self, other])).gtz()
     }
 
     /// Checks whether three [`Square`]s are on the same line
 
     pub fn in_line2(self, other: Self, other2: Self) -> bool {
-        bitboard::line(self, other) & other2 == other2.into()
+        Bitboard::line(self, other) & other2 == other2.into()
     }
 
     /// Fetches the (precomputed) distance between two [`Square`]s

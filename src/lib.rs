@@ -3,16 +3,14 @@
 #[warn(trivial_casts, trivial_numeric_casts)]
 #[warn(unused_results)]
 #[warn(missing_docs)]
-mod spine;
 
 /// semver of the program
 pub const VERSION: &'static str = "0.0.1";
 
-pub use spine::bitboard;
-#[doc(inline)]
+mod spine;
+
 pub use spine::movegen;
 pub use spine::perft;
-#[doc(inline)]
 pub use spine::piece_attacks;
 
 pub mod flags;
@@ -31,6 +29,8 @@ pub mod prelude {
     pub use spine::{Move, MoveFlag};
     pub use spine::{Piece, PieceType};
 }
+
+pub use spine::bitboard::initialize_bitboards;
 
 pub fn print_comp_flags() {
     print!("Flags: ");

@@ -1,4 +1,3 @@
-use crate::bitboard;
 use crate::macros::move_new;
 use crate::piece_attacks::{
     self, bishop_attacks, knight_attacks, pawn_attacks_by_board, rook_attacks,
@@ -158,7 +157,7 @@ pub fn generate_legal(board: &Board, state: &State) -> Movelist {
     let us = board.to_move();
     let king = board.king(us);
     let targets = match state.checkers().popcount() {
-        1 => bitboard::between::<true>(king, state.checkers().lsb()),
+        1 => Bitboard::between::<true>(king, state.checkers().lsb()),
         0 => !board.color(us),
         2 => Bitboard::ZERO, // We can only move the king!
         _ => unreachable!(),

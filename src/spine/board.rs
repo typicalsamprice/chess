@@ -1,4 +1,3 @@
-use crate::bitboard;
 use crate::piece_attacks;
 use crate::prelude::*;
 
@@ -140,12 +139,12 @@ impl Board {
             rook_to,
         } = right;
 
-        let btw_kf_and_rf = bitboard::between::<false>(king_from, rook_from);
+        let btw_kf_and_rf = Bitboard::between::<false>(king_from, rook_from);
         if (self.all() & btw_kf_and_rf).gtz() {
             return false;
         }
 
-        let king_travel = bitboard::between::<true>(king_from, king_to) & self.all();
+        let king_travel = Bitboard::between::<true>(king_from, king_to) & self.all();
         if king_travel.gtz() && (king_travel ^ rook_from).gtz() {
             return false;
         }
@@ -167,7 +166,7 @@ impl Board {
         match s.checkers().popcount() {
             0 => (),
             1 => {
-                let to_checker = bitboard::between::<true>(k, s.checkers().lsb());
+                let to_checker = Bitboard::between::<true>(k, s.checkers().lsb());
                 if f != k {
                     // TODO: Make this less hacky
                     if let Some(ep) = s.en_passant() {
@@ -188,7 +187,7 @@ impl Board {
         if f == k {
             let rk = if mv.flag() == MoveFlag::Castle {
                 // TODO: Allow C960 castling in the future.
-                let mv_rook = bitboard::between::<true>(f, t);
+                let mv_rook = Bitboard::between::<true>(f, t);
                 mv_rook
             } else {
                 Bitboard::ZERO
@@ -200,11 +199,11 @@ impl Board {
             let pinners = s.pinners(them);
             // Possible pinners, up to 2. This makes the iterator iterate less
             // PERF: Is this mask worth it?
-            let pinners = bitboard::line(f, k) & pinners;
+            let pinners = Bitboard::line(f, k) & pinners;
 
             let mut pinner = f;
             for pin in pinners {
-                if (bitboard::between::<false>(pin, k) & f).gtz() {
+                if (Bitboard::between::<false>(pin, k) & f).gtz() {
                     pinner = pin;
                     break;
                 }
@@ -212,7 +211,7 @@ impl Board {
 
             debug_assert!(pinner != f);
             // The pinned piece must move on the line, or take the piece
-            ret_false_if!(!(bitboard::between::<true>(k, pinner) & t).gtz());
+            ret_false_if!(!(Bitboard::between::<true>(k, pinner) & t).gtz());
         }
 
         if mv.flag() == MoveFlag::EnPassant {
@@ -223,7 +222,7 @@ impl Board {
             ret_false_if!((atts & self.color(them)).gtz());
         } else if mv.flag() == MoveFlag::Castle {
             // Cannot castle through check
-            let squares = bitboard::between::<true>(f, t);
+            let squares = Bitboard::between::<true>(f, t);
             let bits = self.all() ^ f;
             let thbits = self.color(them);
             for x in squares {
@@ -270,7 +269,7 @@ impl Board {
 
         // The 960 check is because you could castle "through" your own rook
         if !self.is960 || self.get_piece(t) != Some(Piece::new(Rook, us)) {
-            let between_to_from = bitboard::between::<false>(f, t);
+            let between_to_from = Bitboard::between::<false>(f, t);
             // Can't move THROUGH a piece.
             ret_false_if!((between_to_from & self.all()).gtz());
         }
@@ -282,11 +281,11 @@ impl Board {
             };
 
             let btw_rook_and_king =
-                bitboard::between::<false>(right.king_from, right.rook_from) & self.all();
+                Bitboard::between::<false>(right.king_from, right.rook_from) & self.all();
             ret_false_if!(btw_rook_and_king.gtz());
 
             let king_travels =
-                bitboard::between::<true>(right.king_from, right.king_to) & self.all();
+                Bitboard::between::<true>(right.king_from, right.king_to) & self.all();
             if king_travels.gtz()
                 && !(self.is960
                     && right.king_to == right.rook_from
@@ -339,7 +338,7 @@ impl Board {
         let thematts = self.sliders_to(king, Bitboard::ZERO) & self.color(!color);
 
         for slider in thematts {
-            let line_tk = bitboard::between::<false>(slider, king) & self.all();
+            let line_tk = Bitboard::between::<false>(slider, king) & self.all();
             if line_tk.gtz() {
                 if line_tk.more_than_one() {
                     continue;
