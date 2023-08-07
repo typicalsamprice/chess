@@ -56,7 +56,6 @@ impl Move {
     pub const fn promotion_type(self) -> PieceType {
         unsafe { std::mem::transmute((self.0 >> 14) as u8) }
     }
-
 }
 
 impl MoveFlag {

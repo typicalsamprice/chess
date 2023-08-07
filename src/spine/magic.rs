@@ -1,7 +1,7 @@
+use crate::flags;
 use crate::macros::pext_u64;
 use crate::prelude::*;
 use crate::spine::prng::PRNG;
-use crate::flags;
 
 #[derive(Debug, Clone, Copy)]
 struct Magic {

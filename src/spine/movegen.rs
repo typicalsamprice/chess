@@ -53,6 +53,7 @@ fn generate_pawn_moves(
 
     let push_once = rest << Forward(us) & empty;
     let push_twice = (push_once & Rank::Three.relative_to(us)) << Forward(us) & empty & targets;
+
     // INFO: The reason this has to be shadowed is so that
     // the movegen doesn't stop double-pushes from being used
     // to block checks.
@@ -65,23 +66,23 @@ fn generate_pawn_moves(
         list.push_back(move_new!(x + Backward(us) + Backward(us), x));
     }
 
-    let t = targets & (enemies | state.en_passant());
+    let t = targets & enemies;
     let rightup = (rest << Forward(us) << 1).and_not(File::A) & t;
     let leftup = (rest << Forward(us) >> 1).and_not(File::H) & t;
     for x in rightup {
         let orig = (x + Backward(us)).offset(-1).unwrap();
-        if Some(x) == state.en_passant() {
-            list.push_back(move_new!(orig, x, MoveFlag::EnPassant));
-        } else {
-            list.push_back(move_new!(orig, x));
-        }
+        list.push_back(move_new!(orig, x));
     }
     for x in leftup {
         let orig = (x + Backward(us)).offset(1).unwrap();
-        if Some(x) == state.en_passant() {
-            list.push_back(move_new!(orig, x, MoveFlag::EnPassant));
-        } else {
-            list.push_back(move_new!(orig, x));
+        list.push_back(move_new!(orig, x));
+    }
+
+    if let Some(ep) = state.en_passant() {
+        let pawns = pawn_attacks(ep, them) & rest;
+        for p in pawns {
+            list.push_back(move_new!(p, ep, MoveFlag::EnPassant));
+            dbg!(ep.to_string());
         }
     }
 }
@@ -170,15 +171,11 @@ pub fn generate_legal(board: &Board, state: &State) -> Movelist {
         GenType::All
     };
 
-    if targets.gtz() {
-        generate_pawn_moves(&mut list, board, state, targets, gt);
-    }
+    generate_pawn_moves(&mut list, board, state, targets, gt);
 
     generate_king_moves(&mut list, board, state, targets, gt);
 
-    if targets.gtz() {
-        generate_piece_moves(&mut list, board, state, targets, gt);
-    }
+    generate_piece_moves(&mut list, board, state, targets, gt);
 
     list.retain(|&m| {
         if m.from_square() == king

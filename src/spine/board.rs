@@ -169,8 +169,13 @@ impl Board {
             1 => {
                 let to_checker = bitboard::between::<true>(k, s.checkers().lsb());
                 if f != k {
-                    // Must capture or interpose
-                    ret_false_if!(!(to_checker & t).gtz());
+                    // TODO: Make this less hacky
+                    if let Some(ep) = s.en_passant() {
+                        ret_false_if!((s.checkers() & (ep + ShiftDir::Forward(them))).inner() == 0);
+                    } else {
+                        // Must capture or interpose
+                        ret_false_if!(!(to_checker & t).gtz());
+                    }
                 }
             }
             2 => {
@@ -194,7 +199,7 @@ impl Board {
         if (s.blockers(us) & f).gtz() {
             let pinners = s.pinners(them);
             // Possible pinners, up to 2. This makes the iterator iterate less
-            // TODO: Is this worth? Perft. testing required
+            // PERF: Is this mask worth it?
             let pinners = bitboard::line(f, k) & pinners;
 
             let mut pinner = f;
@@ -211,8 +216,10 @@ impl Board {
         }
 
         if mv.flag() == MoveFlag::EnPassant {
-            let wo_extras = self.all() ^ f ^ Square::build(t.file(), f.rank());
-            let atts = self.attacks_to_bits(k, wo_extras);
+            let caps = Square::build(t.file(), f.rank());
+            let wo_extras = self.all() ^ f ^ caps ^ t;
+            // We don't want to count attacks from the taken pawn
+            let atts = self.attacks_to_bits(k, wo_extras) & !Bitboard::from(caps);
             ret_false_if!((atts & self.color(them)).gtz());
         } else if mv.flag() == MoveFlag::Castle {
             // Cannot castle through check

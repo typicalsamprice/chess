@@ -27,11 +27,11 @@ macro_rules! move_new {
             b'b' => PieceType::Bishop,
             b'r' => PieceType::Rook,
             b'q' => PieceType::Queen,
-            _ => PieceType::Pawn
+            _ => PieceType::Pawn,
         };
         let f = match p {
             PieceType::Pawn => MoveFlag::Normal,
-            _ => MoveFlag::Promotion
+            _ => MoveFlag::Promotion,
         };
 
         let s1 = f1 + 8 * r1;

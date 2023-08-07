@@ -192,4 +192,13 @@ mod pos3 {
             setup_perft!(FEN, 43_238, 4);
         }
     }
+
+    mod deepish {
+        use super::{init, FEN};
+        #[test]
+        fn depth_five() {
+            init();
+            setup_perft!(FEN, 674_624, 5);
+        }
+    }
 }

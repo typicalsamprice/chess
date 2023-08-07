@@ -15,8 +15,8 @@ pub use spine::perft;
 #[doc(inline)]
 pub use spine::piece_attacks;
 
-pub mod macros;
 pub mod flags;
+pub mod macros;
 
 pub mod prelude {
     use super::spine;
